@@ -82,6 +82,7 @@ class GnmiServerAdapter(ABC):
             SAMPLE = 0
             SEND_CHANGES = 1
             FINISH = 10
+            ASYNC_FINISH = 15            
 
         def __init__(self, adapter, subscription_list):
             self.adapter = adapter
@@ -181,7 +182,18 @@ class GnmiServerAdapter(ABC):
             Sends SubscriptionEvent.FINISH to read function.
             """
             log.info("==>")
+            if self.is_monitor_changes():
+                self.stop_monitoring()
             self.put_event(self.SubscriptionEvent.FINISH)
+            log.info("<==")
+
+        def async_stop(self):
+            """
+            The change thread is aborting, the server thread needs to
+            finalize it.
+            """
+            log.info("==>")
+            self.put_event(self.SubscriptionEvent.ASYNC_FINISH)
             log.info("<==")
 
         def sample(self, start_monitoring=False):
@@ -282,6 +294,11 @@ class GnmiServerAdapter(ABC):
                 elif event == self.SubscriptionEvent.FINISH:
                     log.debug("finishing subscription read")
                     break
+                elif event == self.SubscriptionEvent.ASYNC_FINISH:
+                    log.debug("subscription thread aborting")
+                    if self.is_monitor_changes():
+                        self.stop_monitoring()
+                    break
                 elif event == self.SubscriptionEvent.SEND_CHANGES:
                     response = self.changes()
                     log.debug("Sending changes")
@@ -297,9 +314,6 @@ class GnmiServerAdapter(ABC):
                 log.debug("Waiting for event")
                 event = self.read_queue.get()
                 log.debug("Woke up event=%s", event)
-            if self.is_monitor_changes():
-                self.stop_monitoring()
-
             log.info("<==")
 
         def poll(self):
