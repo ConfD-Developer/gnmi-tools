@@ -156,6 +156,7 @@ class GrpcBase(object):
                         read_count -= 1
                         if read_count == 0:
                             log.info("read count reached")
+                            responses.cancel()
                             break
             assert read_count == -1 or read_count == 0
 

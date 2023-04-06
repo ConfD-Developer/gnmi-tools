@@ -46,7 +46,7 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
         self._fill_demo_db()
 
     @staticmethod
-    def load_config_string(xml_cfg):
+    def load_config_string(xml_cfg, reset_changes=True):
         """
         Load config from string
         """
@@ -57,9 +57,8 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
         changes = root.findall("./subscription/STREAM/changes/element")
         log.debug("changes=%s", changes)
         if len(changes):
-            if "changes" not in GnmiDemoServerAdapter.config:
+            if reset_changes or "changes" not in GnmiDemoServerAdapter.config:
                 GnmiDemoServerAdapter.config["changes"] = []
-                GnmiDemoServerAdapter.config["changes_idx"] = 0
             for el in changes:
                 log.debug("len(el)=%s", len(el))
                 if len(el):
@@ -150,6 +149,10 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
             self.change_db_lock = threading.Lock()
             self.change_thread = None
             self.change_event_queue = None
+            self.changes_idx = 0
+            self.cfg_changes = []
+            if "changes" in GnmiDemoServerAdapter.config:
+                self.cfg_changes = GnmiDemoServerAdapter.config["changes"]
 
         def get_sample(self, path, prefix) -> []:
             log.debug("==> path=%s prefix=%s", path, prefix)
@@ -211,22 +214,19 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
             log.debug("<== changes=%s", changes)
             return changes
 
-        @staticmethod
-        def _get_config_changes():
+        def _get_config_changes(self):
             log.debug("==>")
-            assert "changes_idx" in GnmiDemoServerAdapter.config
-            assert "changes" in GnmiDemoServerAdapter.config
+
+            assert len(self.cfg_changes)
             changes = []
-            idx = GnmiDemoServerAdapter.config["changes_idx"]
-            if idx >= len(GnmiDemoServerAdapter.config["changes"]):
-                idx = 0
-            while idx < len(GnmiDemoServerAdapter.config["changes"]):
-                c = GnmiDemoServerAdapter.config["changes"][idx]
+            if self.changes_idx >= len(self.cfg_changes):
+                self.changes_idx = 0
+            while self.changes_idx < len(self.cfg_changes):
+                c = self.cfg_changes[self.changes_idx]
                 changes.append(c)
-                idx += 1
+                self.changes_idx += 1
                 if isinstance(c, str):
                     break
-            GnmiDemoServerAdapter.config["changes_idx"] = idx
             log.debug("<== changes=%s", changes)
             return changes
 
