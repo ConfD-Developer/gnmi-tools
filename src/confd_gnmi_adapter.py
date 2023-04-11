@@ -82,7 +82,7 @@ class GnmiServerAdapter(ABC):
             SAMPLE = 0
             SEND_CHANGES = 1
             FINISH = 10
-            ASYNC_FINISH = 15            
+            ASYNC_FINISH = 15
 
         def __init__(self, adapter, subscription_list):
             self.adapter = adapter
