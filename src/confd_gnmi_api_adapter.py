@@ -346,7 +346,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                         self.socket_loop(sub_sock)
                 except Exception as e:
                     log.exception(e)
-                    self.stop()
+                    self.async_stop()
             log.debug("<==")
 
         def start_monitoring(self):
