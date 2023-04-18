@@ -17,7 +17,9 @@ from grpc._channel import _MultiThreadedRendezvous
 import gnmi_pb2
 from confd_gnmi_common import HOST, PORT, make_xpath_path, VERSION, \
     common_optparse_options, common_optparse_process, make_gnmi_path, \
-    datatype_str_to_int, subscription_mode_str_to_int
+    datatype_str_to_int, subscription_mode_str_to_int, \
+    encoding_int_to_str, encoding_str_to_int
+
 from gnmi_pb2_grpc import gNMIStub
 
 log = logging.getLogger('confd_gnmi_client')
@@ -72,20 +74,22 @@ class ConfDgNMIClient:
 
     @staticmethod
     def make_subscription_list(prefix, paths, mode, encoding,
-                               stream_mode=gnmi_pb2.SubscriptionMode.ON_CHANGE):
+                               stream_mode=gnmi_pb2.SubscriptionMode.ON_CHANGE,
+                               sample_interval: int = 0):
         log.debug("==> mode=%s", mode)
         qos = gnmi_pb2.QOSMarking(marking=1)
         subscriptions = []
         for path in paths:
             if mode == gnmi_pb2.SubscriptionList.STREAM:
-                sub = gnmi_pb2.Subscription(path=path, mode=stream_mode)
+                sub = gnmi_pb2.Subscription(path=path, mode=stream_mode,
+                                            sample_interval=sample_interval)
             else:
                 sub = gnmi_pb2.Subscription(path=path)
             subscriptions.append(sub)
         subscription_list = gnmi_pb2.SubscriptionList(
             prefix=prefix,
             subscription=subscriptions,
-            qos=qos,
+            # qos=qos,
             mode=mode,
             allow_aggregation=False,
             use_models=[],
@@ -293,29 +297,12 @@ def parse_args(args):
     parser.add_argument("--password", action="store", dest="password",
                         help="Password (default 'admin')",
                         default='admin')
-    parser.add_argument("--encoding", choices=["JSON", "JSON_IETF"],
+    parser.add_argument("--encoding", choices=["JSON", "JSON_IETF", "PROTO"],
                         help="Requested encoding for get and subscribe (default 'JSON_IETF')",
                         default="JSON_IETF")
     opt = parser.parse_args(args=args)
     log.debug("opt=%s", opt)
     return opt
-
-
-# TODO - move this into "common" and/or remove/sync with the same code in testtool/robot
-def encoding_int_to_str(encoding: int, no_error = True) -> str:
-    if encoding == 0:
-        return 'JSON'
-    if encoding == 1:
-        return 'BYTES'
-    if encoding == 2:
-        return 'PROTO'
-    if encoding == 3:
-        return 'ASCII'
-    if encoding == 4:
-        return 'JSON_IETF'
-    if no_error:
-        return f'UNKNOWN({encoding})'
-    raise ValueError(f'Unknown encoding! ({encoding})')
 
 
 if __name__ == '__main__':
@@ -344,10 +331,9 @@ if __name__ == '__main__':
     if opt.submode != "STREAM":
         read_count = -1
 
-    encoding = dict(JSON=gnmi_pb2.Encoding.JSON,
-                    JSON_IETF=gnmi_pb2.Encoding.JSON_IETF)[opt.encoding]
+    encoding = encoding_str_to_int(opt.encoding)
     subscription_list = ConfDgNMIClient.make_subscription_list(
-        prefix, paths, subscription_mode, encoding)
+        prefix, paths, subscription_mode, encoding, sample_interval=int(poll_interval))
 
     with closing(ConfDgNMIClient(opt.host, opt.port, insecure=opt.insecure,
                                  server_crt_file=opt.servercrt,
