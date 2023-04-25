@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import argparse
 import json
 import logging
 import ssl
 import sys
 from contextlib import closing
-from typing import Optional
 from time import sleep
+from typing import Optional
 
 import grpc
 from grpc import channel_ready_future, insecure_channel, secure_channel, \
     ssl_channel_credentials
-from grpc._channel import _MultiThreadedRendezvous
 
 import gnmi_pb2
 from confd_gnmi_common import HOST, PORT, make_xpath_path, VERSION, \
@@ -74,13 +74,20 @@ class ConfDgNMIClient:
 
     @staticmethod
     def make_subscription_list(prefix, paths, mode, encoding,
-                               stream_mode=gnmi_pb2.SubscriptionMode.ON_CHANGE):
+                               stream_mode=gnmi_pb2.SubscriptionMode.ON_CHANGE,
+                               sample_interval: int = None):
         log.debug("==> mode=%s", mode)
         qos = gnmi_pb2.QOSMarking(marking=1)
         subscriptions = []
+        if sample_interval is not None:
+            ns_sample_interval = sample_interval*1000000
         for path in paths:
             if mode == gnmi_pb2.SubscriptionList.STREAM:
-                sub = gnmi_pb2.Subscription(path=path, mode=stream_mode)
+                if stream_mode == gnmi_pb2.SubscriptionMode.SAMPLE:
+                    sub = gnmi_pb2.Subscription(path=path, mode=stream_mode,
+                                                sample_interval=ns_sample_interval)
+                else:
+                    sub = gnmi_pb2.Subscription(path=path, mode=stream_mode)
             else:
                 sub = gnmi_pb2.Subscription(path=path)
             subscriptions.append(sub)
@@ -275,6 +282,11 @@ def parse_args(args):
                         type=float,
                         help="Interval (in seconds) between POLL requests (default 0.5)",
                         default=0.5)
+    parser.add_argument("--sample-interval", action="store", dest="sampleinterval",
+                        type=int,
+                        help="Interval (in ms) between SAMPLE requests in STREAM subscription mode"
+                             "(if set, SAMPLE Subscriptions are created)",
+                        default=None)
     parser.add_argument("--interactive-poll", action="store_true", dest="interactivepoll",
                         help="Poll subscription invoked interactively.")
     parser.add_argument("--subscription-end-delay", action="store", dest="subscription_end_delay",
@@ -309,13 +321,14 @@ if __name__ == '__main__':
     log.debug("opt=%s", opt)
     log.info("paths=%s vals=%s", opt.paths, opt.vals)
     prefix_str = opt.prefix
-    prefix = None #if prefix_str == "" else make_gnmi_path(prefix_str)
+    prefix = None if prefix_str == "" else make_gnmi_path(prefix_str)
     paths = [make_gnmi_path(p) for p in opt.paths]
     vals = [gnmi_pb2.TypedValue(json_ietf_val=v.encode()) for v in opt.vals]
 
     datatype = datatype_str_to_int(opt.datatype)
     subscription_mode = subscription_mode_str_to_int(opt.submode)
     poll_interval: float = opt.pollinterval
+    sample_interval: int = opt.sampleinterval
     poll_count: int = opt.pollcount
     interactive_poll: bool = opt.interactivepoll
     read_count: int = opt.readcount
@@ -323,15 +336,21 @@ if __name__ == '__main__':
 
     log.debug("datatype=%s subscription_mode=%s poll_interval=%s "
               "poll_count=%s read_count=%s subscription_end_delay=%s "
-              "interactive_poll=%s",
+              "interactive_poll=%s sample_interval=%s",
               datatype, subscription_mode, poll_interval, poll_count,
-              read_count, subscription_end_delay, interactive_poll)
+              read_count, subscription_end_delay, interactive_poll,
+              sample_interval)
     if opt.submode != "STREAM":
         read_count = -1
 
     encoding = encoding_str_to_int(opt.encoding)
-    subscription_list = ConfDgNMIClient.make_subscription_list(
-        prefix, paths, subscription_mode, encoding)
+    if sample_interval is not None:
+        subscription_list = ConfDgNMIClient.make_subscription_list(
+            prefix, paths, subscription_mode, encoding, stream_mode=gnmi_pb2.SubscriptionMode.SAMPLE,
+            sample_interval=sample_interval)
+    else:
+        subscription_list = ConfDgNMIClient.make_subscription_list(
+            prefix, paths, subscription_mode, encoding)
 
     with closing(ConfDgNMIClient(opt.host, opt.port, insecure=opt.insecure,
                                  server_crt_file=opt.servercrt,
