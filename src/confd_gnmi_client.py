@@ -74,22 +74,20 @@ class ConfDgNMIClient:
 
     @staticmethod
     def make_subscription_list(prefix, paths, mode, encoding,
-                               stream_mode=gnmi_pb2.SubscriptionMode.ON_CHANGE,
-                               sample_interval: int = 0):
+                               stream_mode=gnmi_pb2.SubscriptionMode.ON_CHANGE):
         log.debug("==> mode=%s", mode)
         qos = gnmi_pb2.QOSMarking(marking=1)
         subscriptions = []
         for path in paths:
             if mode == gnmi_pb2.SubscriptionList.STREAM:
-                sub = gnmi_pb2.Subscription(path=path, mode=stream_mode,
-                                            sample_interval=sample_interval)
+                sub = gnmi_pb2.Subscription(path=path, mode=stream_mode)
             else:
                 sub = gnmi_pb2.Subscription(path=path)
             subscriptions.append(sub)
         subscription_list = gnmi_pb2.SubscriptionList(
             prefix=prefix,
             subscription=subscriptions,
-            # qos=qos,
+            qos=qos,
             mode=mode,
             allow_aggregation=False,
             use_models=[],
@@ -333,7 +331,7 @@ if __name__ == '__main__':
 
     encoding = encoding_str_to_int(opt.encoding)
     subscription_list = ConfDgNMIClient.make_subscription_list(
-        prefix, paths, subscription_mode, encoding, sample_interval=int(poll_interval))
+        prefix, paths, subscription_mode, encoding)
 
     with closing(ConfDgNMIClient(opt.host, opt.port, insecure=opt.insecure,
                                  server_crt_file=opt.servercrt,
