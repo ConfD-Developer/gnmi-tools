@@ -1,4 +1,5 @@
 import logging
+import itertools
 import os
 import re
 import select
@@ -113,12 +114,18 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                 log.debug("self.change_db=%s", self.change_db)
                 assert len(self.change_db) > 0
                 for sub_point, changes in self.change_db:
-                    prefix = self.subpoint_paths[sub_point]
-                    updates = [gnmi_pb2.Update(path=remove_path_prefix(path, prefix),
-                                               val=value)
-                               for _op, path, value in changes]
-                    log.debug("update=%s", updates)
-                    yield prefix, updates
+                    sub_prefix = self.subpoint_paths[sub_point]
+                    pfxlen = len(sub_prefix.elem)
+                    groups = itertools.groupby(changes, key=lambda change: change[1].elem[:pfxlen])
+                    for elems, changegroup in groups:
+                        prefix = gnmi_pb2.Path(elem=elems,
+                                               target=sub_prefix.target,
+                                               origin=sub_prefix.origin)
+                        updates = [gnmi_pb2.Update(path=remove_path_prefix(path, prefix),
+                                                   val=value)
+                                   for _op, path, value in changegroup]
+                        log.debug("update=%s", updates)
+                        yield prefix, updates
                 self.change_db = []
 
         def get_monitored_changes(self):
