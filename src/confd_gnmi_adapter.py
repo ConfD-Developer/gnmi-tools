@@ -165,11 +165,10 @@ class GnmiServerAdapter(ABC):
             changes.
             :return:
             """
-            is_monitor = False
-            if self.subscription_list.mode == gnmi_pb2.SubscriptionList.STREAM:
-                for s in  self.subscription_list.subscription:
-                    if s.mode == gnmi_pb2.SubscriptionMode.ON_CHANGE:
-                        is_monitor = True
+            is_monitor = self.subscription_list.mode == gnmi_pb2.SubscriptionList.STREAM and any(
+                s.mode == gnmi_pb2.SubscriptionMode.ON_CHANGE for s in
+                self.subscription_list.subscription)
+
             return is_monitor
 
         def put_event(self, event):
@@ -262,6 +261,28 @@ class GnmiServerAdapter(ABC):
                                           atomic=False)
             return [notif]
 
+        def _get_next_sample_interval_and_subscriptions(self,
+                                                        first_sample_time: int):
+            interval = None
+            subscriptions = []
+            curr = time.time_ns()
+            for s in self.subscription_list.subscription:
+                if s.mode == gnmi_pb2.SubscriptionMode.SAMPLE:
+                    interval_mod = (
+                                               curr - first_sample_time) % s.sample_interval
+                    interval_candidate = s.sample_interval - interval_mod
+                    if interval == None:
+                        interval = interval_candidate
+                    # todo some threshold ?
+                    if interval == interval_candidate:
+                        subscriptions.append(s)
+                    elif interval > interval_candidate:
+                        subscriptions = [s]
+                        interval = interval_candidate
+
+            log.debug("interval=%s", interval)
+            return interval, subscriptions
+
         def read(self):
             """
             Read (get) subscription response(s) (in stream) for added
@@ -281,27 +302,9 @@ class GnmiServerAdapter(ABC):
                 assert self.read_queue is not None
             event = None
             first_sample = True
+            first_sample_time = 0
             next_sample_interval = None
             sample_subscriptions = self.subscription_list.subscription
-
-            def get_next_sample_interval_and_subscriptions(first_sample_time: int):
-                interval = None
-                subscriptions = []
-                curr = time.time_ns()
-                for s in self.subscription_list.subscription:
-                    if s.mode == gnmi_pb2.SubscriptionMode.SAMPLE:
-                        interval_mod = (curr - first_sample_time) % s.sample_interval
-                        interval_candidate = s.sample_interval - interval_mod
-                        if interval == None:
-                            interval = interval_candidate
-                        # todo some threshold ?
-                        if interval == interval_candidate:
-                            subscriptions.append(s)
-                        elif interval > interval_candidate:
-                            subscriptions = [s]
-                            interval = interval_candidate
-                log.debug("interval=%s", interval)
-                return interval, subscriptions
 
             for s in sample_subscriptions:
                 if self.monitoring and s.mode == gnmi_pb2.SubscriptionMode.ON_CHANGE:
@@ -323,7 +326,7 @@ class GnmiServerAdapter(ABC):
                         break
                     if self.subscription_list.mode == gnmi_pb2.SubscriptionList.STREAM:
                         (next_sample_interval, sample_subscriptions) = \
-                            get_next_sample_interval_and_subscriptions(
+                            self._get_next_sample_interval_and_subscriptions(
                                 first_sample_time)
                     if next_sample_interval:
                         #convert to seconds

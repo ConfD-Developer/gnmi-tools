@@ -199,7 +199,7 @@ class GrpcBase(object):
                                                    subscription_mode,
                                                    encoding,
                                                    stream_mode = stream_mode,
-                                                   sample_interval = sample_interval)
+                                                   sample_interval_ms=sample_interval)
 
         responses = self.client.subscribe(subscription_list,
                                           read_fun=read_fun,
