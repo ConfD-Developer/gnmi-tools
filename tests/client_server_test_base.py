@@ -1,6 +1,7 @@
 import json
 import subprocess
 import threading
+import time
 import xml.etree.cElementTree as ET
 from time import sleep
 
@@ -120,9 +121,31 @@ class GrpcBase(object):
                                         subscription_mode=gnmi_pb2.SubscriptionList.ONCE,
                                         poll_interval=0,
                                         poll_count=0, read_count=-1,
+                                        sample_interval = None,
                                         encoding=gnmi_pb2.Encoding.JSON_IETF):
+        '''
+        Invoke subscription and verify received updates
+        :param prefix:  gNMI prefix for subscription
+        :param paths:   gNMI path for subscription
+        :param path_value: array of tuples of expected (path,value) for each response
+                           path is gNMI path, val is response value (in json)
+        :param assert_fun: function to verify updates according to path_value
+        :param subscription_mode:
+        :param poll_interval: interval between polls (for gnmi_pb2.SubscriptionList.POLL only)
+        :param poll_count: number of polls (for gnmi_pb2.SubscriptionList.POLL only)
+        :param read_count: finish after the number of responses is read
+              (for  gnmi_pb2.SubscriptionList.POLL or when sample_interval is used)
+        :param sample_interval: interval for sample  in ms (for gnmi_pb2.SubscriptionList.STREAM only)
+        :param encoding: encoding to use (implemented only JSON_IETF)
+        '''
         if assert_fun is None:
             assert_fun = GrpcBase.assert_updates
+
+        stream_mode =  gnmi_pb2.SubscriptionMode.ON_CHANGE
+        if sample_interval is not None:
+            assert  subscription_mode == gnmi_pb2.SubscriptionList.STREAM
+            stream_mode =  gnmi_pb2.SubscriptionMode.SAMPLE
+
         log.debug("paths=%s path_value=%s", paths, path_value)
         response_count = 0
         pv_idx = 0
@@ -134,9 +157,12 @@ class GrpcBase(object):
 
         def read_subscribe_responses(responses, read_count=-1):
             nonlocal response_count, pv_idx
+            prev_response_time_ms = 0
+            SAMPLE_THRESHOLD = 100
             for response in responses:
                 log.debug("response=%s response_count=%i", response,
                           response_count)
+                response_time_ms = time.time_ns()/1000000
                 if response.sync_response:
                     log.debug("sync_response")
                     assert response_count == 1  # sync expected only after first response
@@ -151,12 +177,19 @@ class GrpcBase(object):
                         pv_idx += 1
                     if len(pv_to_check) > 0:  # skip empty arrays
                         assert_fun(response.update.update, pv_to_check)
-                    log.debug("response_count=%i", response_count)
+                    log.debug("response_count=%i pv_idx=%i", response_count, pv_idx)
+                    if sample_interval and response_count > 1:
+                        assert (response_time_ms > (prev_response_time_ms + sample_interval - SAMPLE_THRESHOLD)) and (
+                                response_time_ms < (prev_response_time_ms + sample_interval + SAMPLE_THRESHOLD))
+
                     if read_count > 0:
                         read_count -= 1
                         if read_count == 0:
                             log.info("read count reached")
                             break
+                prev_response_time_ms = response_time_ms
+                log.debug("Getting next response. read_count=%s response_count=%s",
+                          read_count, response_count)
             assert read_count == -1 or read_count == 0
 
         read_fun = read_subscribe_responses
@@ -164,7 +197,9 @@ class GrpcBase(object):
             ConfDgNMIClient.make_subscription_list(prefix,
                                                    paths,
                                                    subscription_mode,
-                                                   encoding)
+                                                   encoding,
+                                                   stream_mode = stream_mode,
+                                                   sample_interval = sample_interval)
 
         responses = self.client.subscribe(subscription_list,
                                           read_fun=read_fun,
@@ -181,6 +216,7 @@ class GrpcBase(object):
                             subscription_mode=gnmi_pb2.SubscriptionList.ONCE,
                             poll_interval=0,
                             poll_count=0, read_count=-1,
+                            sample_interval = None,
                             encoding = gnmi_pb2.Encoding.JSON_IETF):
 
         kwargs = {"assert_fun": GrpcBase.assert_updates}
@@ -212,6 +248,7 @@ class GrpcBase(object):
             kwargs["poll_interval"] = poll_interval
             kwargs["poll_count"] = poll_count
             kwargs["read_count"] = read_count
+            kwargs["sample_interval"] = sample_interval
         else:
             verify_response_updates = self.verify_get_response_updates
             kwargs["datatype"] = datatype
@@ -448,6 +485,14 @@ class GrpcBase(object):
         if self.adapter_type == AdapterType.API:
             thr.join()
             # TODO reset ConfD DB to original values
+
+    @pytest.mark.parametrize("data_type", ["CONFIG", "STATE"])
+    def test_subscribe_stream_sample(self, request, data_type):
+        log.info("testing subscribe_stream_sample")
+        self._test_get_subscribe(is_subscribe=True,
+                    subscription_mode=gnmi_pb2.SubscriptionList.STREAM,
+                    datatype=datatype_str_to_int(data_type),
+                                 sample_interval=1000, read_count=2)
 
     def test_set(self, request):
         log.info("testing set")

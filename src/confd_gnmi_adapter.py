@@ -287,9 +287,9 @@ class GnmiServerAdapter(ABC):
             def get_next_sample_interval_and_subscriptions(first_sample_time: int):
                 interval = None
                 subscriptions = []
+                curr = time.time_ns()
                 for s in self.subscription_list.subscription:
                     if s.mode == gnmi_pb2.SubscriptionMode.SAMPLE:
-                        curr = time.time_ns()
                         interval_mod = (curr - first_sample_time) % s.sample_interval
                         interval_candidate = s.sample_interval - interval_mod
                         if interval == None:
