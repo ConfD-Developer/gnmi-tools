@@ -1,9 +1,10 @@
 from __future__ import annotations
 import logging
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from queue import Queue
+from queue import Queue, Empty
 from typing import List
 
 import gnmi_pb2
@@ -88,8 +89,10 @@ class GnmiServerAdapter(ABC):
             self.adapter = adapter
             self.subscription_list = subscription_list
             self.read_queue = None
+            self.monitoring = False
             if not self.is_once():
                 self.read_queue = Queue()
+                self.monitoring = self._is_monitor_changes()
 
         @abstractmethod
         def get_sample(self, path, prefix) -> List:
@@ -156,13 +159,17 @@ class GnmiServerAdapter(ABC):
             """
             return self.subscription_list.mode == gnmi_pb2.SubscriptionList.POLL
 
-        def is_monitor_changes(self):
+        def _is_monitor_changes(self):
             """
             Return True if subscription is of such type that we should monitor
             changes.
             :return:
             """
-            return self.subscription_list.mode == gnmi_pb2.SubscriptionList.STREAM
+            is_monitor = self.subscription_list.mode == gnmi_pb2.SubscriptionList.STREAM and any(
+                s.mode == gnmi_pb2.SubscriptionMode.ON_CHANGE for s in
+                self.subscription_list.subscription)
+
+            return is_monitor
 
         def put_event(self, event):
             """
@@ -182,7 +189,7 @@ class GnmiServerAdapter(ABC):
             Sends SubscriptionEvent.FINISH to read function.
             """
             log.info("==>")
-            if self.is_monitor_changes():
+            if self.monitoring:
                 self.stop_monitoring()
             self.put_event(self.SubscriptionEvent.FINISH)
             log.info("<==")
@@ -196,32 +203,27 @@ class GnmiServerAdapter(ABC):
             self.put_event(self.SubscriptionEvent.ASYNC_FINISH)
             log.info("<==")
 
-        def sample(self, start_monitoring=False):
+        def sample(self, subscriptions):
             """
             Get current sample of subscribed paths according to
-            `self.subscription_list`.
+            `subscriptions`.
             :param: start_monitoring: if True, the paths will be monitored
             for future changes
             TODO `delete` is processed and `delete` array is empty
             TODO timestamp is 0
             :return: SubscribeResponse with sample
             """
-            log.debug("==> start_monitoring=%s", start_monitoring)
+            log.debug("==> subscriptions=%s", subscriptions)
             update = []
-            for s in self.subscription_list.subscription:
+            for s in subscriptions:
                 update.extend(self.get_sample(path=s.path,
                                               prefix=self.subscription_list.prefix))
-                if start_monitoring:
-                    self.add_path_for_monitoring(s.path,
-                                                 self.subscription_list.prefix)
             notif = gnmi_pb2.Notification(timestamp=0,
                                           prefix=self.subscription_list.prefix,
                                           update=update,
                                           delete=[],
                                           atomic=False)
             response = gnmi_pb2.SubscribeResponse(update=notif)
-            if start_monitoring:
-                self.start_monitoring()
             log.debug("<== response=%s", response)
             return response
 
@@ -234,7 +236,6 @@ class GnmiServerAdapter(ABC):
             response = gnmi_pb2.SubscribeResponse(sync_response=True)
             log.debug("<== response=%s", response)
             return response
-
 
         def changes(self):
             """
@@ -260,6 +261,28 @@ class GnmiServerAdapter(ABC):
                                           atomic=False)
             return [notif]
 
+        def _get_next_sample_interval_and_subscriptions(self,
+                                                        first_sample_time: int):
+            interval = None
+            subscriptions = []
+            curr = time.time_ns()
+            for s in self.subscription_list.subscription:
+                if s.mode == gnmi_pb2.SubscriptionMode.SAMPLE:
+                    interval_mod = (
+                                               curr - first_sample_time) % s.sample_interval
+                    interval_candidate = s.sample_interval - interval_mod
+                    if interval == None:
+                        interval = interval_candidate
+                    # todo some threshold ?
+                    if interval == interval_candidate:
+                        subscriptions.append(s)
+                    elif interval > interval_candidate:
+                        subscriptions = [s]
+                        interval = interval_candidate
+
+            log.debug("interval=%s", interval)
+            return interval, subscriptions
+
         def read(self):
             """
             Read (get) subscription response(s) (in stream) for added
@@ -279,24 +302,41 @@ class GnmiServerAdapter(ABC):
                 assert self.read_queue is not None
             event = None
             first_sample = True
+            first_sample_time = 0
+            next_sample_interval = None
+            sample_subscriptions = self.subscription_list.subscription
+
+            for s in sample_subscriptions:
+                if self.monitoring and s.mode == gnmi_pb2.SubscriptionMode.ON_CHANGE:
+                    self.add_path_for_monitoring(s.path,self.subscription_list.prefix)
+
             while True:
                 log.debug("Processing event type %s", event)
                 # SAMPLE is handled in the same way as "first_sample"
                 if first_sample or event == self.SubscriptionEvent.SAMPLE:
-                    response = self.sample(
-                        start_monitoring=self.is_monitor_changes() and first_sample)
+                    response = self.sample(sample_subscriptions)
+                    if first_sample and self.monitoring:
+                        self.start_monitoring()
                     yield response
                     if first_sample:
+                        first_sample_time = time.time_ns()
                         yield self.sync_response()
                     first_sample = False
                     if self.is_once():
                         break
+                    if self.subscription_list.mode == gnmi_pb2.SubscriptionList.STREAM:
+                        (next_sample_interval, sample_subscriptions) = \
+                            self._get_next_sample_interval_and_subscriptions(
+                                first_sample_time)
+                    if next_sample_interval:
+                        #convert to seconds
+                        next_sample_interval = float(next_sample_interval / 1000000000)
                 elif event == self.SubscriptionEvent.FINISH:
                     log.debug("finishing subscription read")
                     break
                 elif event == self.SubscriptionEvent.ASYNC_FINISH:
                     log.debug("subscription thread aborting")
-                    if self.is_monitor_changes():
+                    if self.monitoring:
                         self.stop_monitoring()
                     break
                 elif event == self.SubscriptionEvent.SEND_CHANGES:
@@ -311,8 +351,14 @@ class GnmiServerAdapter(ABC):
                     log.warning("**** event=%s not processed ! ****", event)
                     # TODO error
                     break
-                log.debug("Waiting for event")
-                event = self.read_queue.get()
+                log.debug("Waiting for event next_sample_interval=%s",
+                         next_sample_interval)
+                try:
+                    event = self.read_queue.get(timeout=next_sample_interval)
+                except Empty:
+                    log.debug("sample timeout")
+                    event = self.SubscriptionEvent.SAMPLE
+
                 log.debug("Woke up event=%s", event)
             log.info("<==")
 
