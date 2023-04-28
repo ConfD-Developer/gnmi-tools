@@ -234,3 +234,10 @@ def subscription_mode_str_to_int(mode: str, no_error=False) -> int:
     return _convert_enum_format(gnmi_pb2.SubscriptionList.Mode.Value, mode,
                                 f'Unknown subscription mode! ({mode})',
                                 no_error, f'UNKNOWN({mode})')
+
+
+def stream_mode_str_to_int(mode: str, no_error=False) -> int:
+    """ Convert text representation of streaming mode to standardized integer. """
+    return _convert_enum_format(gnmi_pb2.SubscriptionMode.Value, mode,
+                                f'Unknown streaming mode! ({mode})',
+                                no_error, f'UNKNOWN({mode})')
