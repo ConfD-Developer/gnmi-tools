@@ -8,8 +8,8 @@
 ifdef::env-github[]
 //https://github.com/DBuret/journal/blob/master/github-adoc-puml.adoc
 //do not use dashes, underscores and any other special characters in names!
-:gitplant: http://www.plantuml.com/plantuml/proxy?src=https://raw.githubusercontent.com/ConfD-Developer/ConfD-Demos/master/confdgnmi/docs
-:gitplant-develop: http://www.plantuml.com/plantuml/proxy?src=https://raw.githubusercontent.com/micnovak/ConfD-Demos/confdgnmi-develop/confdgnmi/docs
+:gitplant: http://www.plantuml.com/plantuml/proxy?src=https://raw.githubusercontent.com/ConfD-Developer/gnmi-tools/main/docs
+:gitplant-develop: http://www.plantuml.com/plantuml/proxy?src=https://raw.githubusercontent.com/micnovak/ConfD-Demos/gnmi-tools/develop/docs
 :caution-caption: :fire:
 :important-caption: :exclamation:
 :note-caption: :information_source:
@@ -666,7 +666,7 @@ Following diagram shows deployment context of the
 gNMI Adapter.
 
 ifdef::env-github[]
-image::{gitplant-develop}/deployment.puml[]
+image::{gitplant}/deployment.puml[]
 endif::[]
 ifndef::env-github[]
 plantuml::deployment.puml[format="svg", align="center"]
@@ -924,7 +924,7 @@ Current implementation can be described with help of following diagrams.
 ===== ONCE Subscription diagram
 
 ifdef::env-github[]
-image::{gitplant-develop}/subscribeonce.puml[]
+image::{gitplant}/subscribeonce.puml[]
 endif::[]
 ifndef::env-github[]
 plantuml::subscribeonce.puml[format="svg", align="center"]
@@ -933,7 +933,7 @@ endif::[]
 ===== POLL Subscription diagram
 
 ifdef::env-github[]
-image::{gitplant-develop}/subscribepoll.puml[]
+image::{gitplant}/subscribepoll.puml[]
 endif::[]
 ifndef::env-github[]
 plantuml::subscribepoll.puml[format="svg", align="center"]
@@ -942,7 +942,7 @@ endif::[]
 ===== STREAM Subscription diagram
 
 ifdef::env-github[]
-image::{gitplant-develop}/subscribestream.puml[]
+image::{gitplant}/subscribestream.puml[]
 endif::[]
 ifndef::env-github[]
 plantuml::subscribestream.puml[format="svg", align="center"]
@@ -989,7 +989,7 @@ NOTE: Currently, only supported operation value is `mod` - modified
 The sequence diagram for STREAM subscription with external changes:
 
 ifdef::env-github[]
-image::{gitplant-develop}/subscribedpstream.puml[]
+image::{gitplant}/subscribedpstream.puml[]
 endif::[]
 ifndef::env-github[]
 plantuml::subscribedpstream.puml[format="svg", align="center"]
