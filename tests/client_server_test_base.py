@@ -158,7 +158,7 @@ class GrpcBase(object):
         def read_subscribe_responses(responses, read_count=-1):
             nonlocal response_count, pv_idx
             prev_response_time_ms = 0
-            SAMPLE_THRESHOLD = 100
+            SAMPLE_THRESHOLD = 200
             for response in responses:
                 log.debug("response=%s response_count=%i", response,
                           response_count)

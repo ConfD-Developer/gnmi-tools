@@ -1,4 +1,6 @@
+import os
 import socket
+import sys
 import threading
 from time import sleep
 
@@ -6,14 +8,14 @@ import pytest
 
 import gnmi_pb2
 from client_server_test_base import GrpcBase
-from confd_gnmi_api_adapter import GnmiConfDApiServerAdapter
 from confd_gnmi_common import make_gnmi_path, make_xpath_path
 from confd_gnmi_server import AdapterType
 from route_status import RouteData, RouteProvider, ChangeOp
 from utils.utils import log
+sys.path.append(os.getenv('CONFD_DIR')+"/src/confd/pyapi/confd")
+from confd_gnmi_api_adapter import GnmiConfDApiServerAdapter
 
 _confd_DEBUG = 1
-
 
 @pytest.mark.grpc
 @pytest.mark.confd

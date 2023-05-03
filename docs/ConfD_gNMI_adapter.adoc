@@ -241,11 +241,11 @@ Server is started by running  `./src/confd_gnmi_server.py` python script.
 .output
 [source, shell]
 ----
-usage: confd_gnmi_server.py [-h] [-v] [-t {api,demo}]
-                            [--logging {error,warning,info,debug}] [--insecure]
-                            [--port PORT] [--host HOST]
+usage: confd_gnmi_server.py [-h] [-v] [-t {api,demo,nso}]
+                            [--logging {error,warning,info,debug}]
+                            [--insecure] [--port PORT] [--host HOST]
                             [-d {trace,debug,silent,proto}]
-                            [--confd-addr CONFD_ADDR] [--confd-port CONFD_PORT]
+                            [--confd-addr CONFD_ADDR] [--api-port API_PORT]
                             [--monitor-external-changes]
                             [--external-port EXTERNAL_PORT] [--cfg CFG]
                             [--key KEY] [--crt CRT]
@@ -255,7 +255,7 @@ gNMI Adapter server
 options:
   -h, --help            show this help message and exit
   -v, --version         show program's version number and exit
-  -t {api,demo}, --type {api,demo}
+  -t {api,demo,nso}, --type {api,demo,nso}
                         gNMI server type
   --logging {error,warning,info,debug}
                         Logging level
@@ -266,8 +266,7 @@ options:
                         ConfD debug level
   --confd-addr CONFD_ADDR
                         ConfD IP address (default is 127.0.0.1)
-  --confd-port CONFD_PORT
-                        ConfD port (default is 4565)
+  --api-port API_PORT   API port (ConfD or NSO)
   --monitor-external-changes
                         start external changes service
   --external-port EXTERNAL_PORT
@@ -277,7 +276,7 @@ options:
   --crt CRT             Path to the server certificate.
 ----
 
-We can run server in demo mode type (pass `-t demo`) or in API (`maapi`) mode against ConfD (pass `-t api`). Other modes (like `netconf` are currently not supported). For `demo` mode type, it may be necessary to pass config file (e.g. for `STREAM` subscriptions, `--cfg=data/demo.xml). We can pass
+We can run server in demo mode type (pass `-t demo`) or in API (`maapi`) mode against ConfD (pass `-t api`) or NSO (pass `-t nso`). Other modes (like `netconf` are currently not supported). For `demo` mode type, it may be necessary to pass config file (e.g. for `STREAM` subscriptions, `--cfg=data/demo.xml). We can pass
 host interface and port the server listens for gRPC communication, specify server key and certificate
 or just use insecure communication connection channel.
 

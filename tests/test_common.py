@@ -49,7 +49,6 @@ def test_make_path(path):
 
 def check_in_args(args, check_dict):
     args_dict = vars(args)
-    # print("args_dict={}", args_dict)
     for k, v in check_dict.items():
         assert k in args_dict and str(args_dict[k]) == str(v)
 
@@ -108,8 +107,8 @@ def test_client_argparse():
 def test_server_argparse():
     check_in_args(server_parse_args([]),
                   {"type": "demo", "logging": "warning", "confd_debug": "debug",
-                   "confd_addr": ApiAdapterDefaults.CONFD_ADDR,
-                   "confd_port": ApiAdapterDefaults.CONFD_PORT,
+                   "confd_addr": ApiAdapterDefaults.ADDR,
+                   "api_port": None,
                    "monitor_external_changes": ApiAdapterDefaults.MONITOR_EXTERNAL_CHANGES,
                    "external_port": ApiAdapterDefaults.EXTERNAL_PORT,
                    "cfg": None})
@@ -119,9 +118,9 @@ def test_server_argparse():
              {"dest": "confd_debug", "args": ["-d", "--confd-debug"],
               "vals": ["trace", "debug", "silent", "proto"]},
              {"dest": "confd_addr", "args": ["--confd-addr"],
-              "vals": [str(ApiAdapterDefaults.CONFD_ADDR), "10.0.0.1"]},
-             {"dest": "confd_port", "args": ["--confd-port"],
-              "vals": [str(ApiAdapterDefaults.CONFD_PORT), "3210"]},
+              "vals": [str(ApiAdapterDefaults.ADDR), "10.0.0.1"]},
+             {"dest": "api_port", "args": ["--api-port"],
+              "vals": ["4565", "3210"]},
              {"dest": "monitor_external_changes",
               "args": ["--monitor-external-changes"],
               "vals": []},
