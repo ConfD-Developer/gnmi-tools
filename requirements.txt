@@ -1,3 +1,2 @@
 grpcio-tools
-robotframework
-pyyaml
+protobuf
