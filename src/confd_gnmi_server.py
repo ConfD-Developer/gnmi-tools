@@ -281,21 +281,21 @@ def parse_args(args, parser = None):
     parser.add_argument("-v", "--version", action="version",
                         version="%(prog)s {}".format(VERSION))
     parser.add_argument("-t", "--type", action="store", dest="type",
-                        choices=["api", "demo", 'nso'],
+                        choices=["demo", "confd", 'nso'],
                         help="gNMI server type",
                         default="demo")
     common_optparse_options(parser)
-    parser.add_argument("-d", "--confd-debug", action="store",
-                        dest="confd_debug",
+    parser.add_argument("-d", "--confd-nso-debug", action="store",
+                        dest="confd_nso_debug",
                         choices=["trace", "debug", "silent", "proto"],
-                        help="ConfD debug level",
+                        help="ConfD or NSO debug level",
                         default="debug")
-    parser.add_argument("--confd-addr", action="store", dest="confd_addr",
-                        help="ConfD IP address (default is {})".format(
+    parser.add_argument("--confd-nso-addr", action="store", dest="confd_nso_addr",
+                        help="ConfD or NSO IP address (default is {})".format(
                             ApiAdapterDefaults.ADDR),
                         default=ApiAdapterDefaults.ADDR)
-    parser.add_argument("--api-port", action="store", dest="api_port",
-                        help="API port (ConfD or NSO)")
+    parser.add_argument("--confd-nso-port", action="store", dest="confd_nso_port",
+                        help="IPC port (ConfD or NSO)")
     parser.add_argument("--monitor-external-changes", action="store_true",
                         dest="monitor_external_changes",
                         help="start external changes service",
@@ -322,17 +322,17 @@ if __name__ == '__main__':
     common_optparse_process(opt, log)
     log.debug("opt=%s", opt)
     adapter_type = AdapterType.DEMO
-    if opt.type == "api" or opt.type == "nso":
-        if opt.type == "api":
+    if opt.type == "confd" or opt.type == "nso":
+        if opt.type == "confd":
             sys.path.append(os.getenv('CONFD_DIR') + "/src/confd/pyapi/confd")
         else:
             sys.path.append(os.getenv('NCS_DIR') + "/src/ncs/pyapi/ncs")
         from confd_gnmi_api_adapter import GnmiConfDApiServerAdapter
         adapter_type = AdapterType.API
-        GnmiConfDApiServerAdapter.set_debug_level(opt.confd_debug)
-        GnmiConfDApiServerAdapter.set_addr(opt.confd_addr)
-        if opt.api_port:
-            GnmiConfDApiServerAdapter.set_port(int(opt.api_port))
+        GnmiConfDApiServerAdapter.set_tm_debug_level(opt.confd_nso_debug)
+        GnmiConfDApiServerAdapter.set_addr(opt.confd_nso_addr)
+        if opt.confd_nso_port:
+            GnmiConfDApiServerAdapter.set_port(int(opt.confd_nso_port))
         GnmiConfDApiServerAdapter.set_external_port(int(opt.external_port))
         GnmiConfDApiServerAdapter.set_monitor_external_changes(
             bool(opt.monitor_external_changes))

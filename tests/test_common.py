@@ -106,20 +106,20 @@ def test_client_argparse():
 @pytest.mark.unit
 def test_server_argparse():
     check_in_args(server_parse_args([]),
-                  {"type": "demo", "logging": "warning", "confd_debug": "debug",
-                   "confd_addr": ApiAdapterDefaults.ADDR,
-                   "api_port": None,
+                  {"type": "demo", "logging": "warning", "confd_nso_debug": "debug",
+                   "confd_nso_addr": ApiAdapterDefaults.ADDR,
+                   "confd_nso_port": None,
                    "monitor_external_changes": ApiAdapterDefaults.MONITOR_EXTERNAL_CHANGES,
                    "external_port": ApiAdapterDefaults.EXTERNAL_PORT,
                    "cfg": None})
 
     check = [{"dest": "type", "args": ["-t", "--type"],
-              "vals": ["demo", "api"], "invalid": ["netconf"]},
-             {"dest": "confd_debug", "args": ["-d", "--confd-debug"],
+              "vals": ["demo", "confd", "nso"], "invalid": ["netconf"]},
+             {"dest": "confd_nso_debug", "args": ["-d", "--confd-nso-debug"],
               "vals": ["trace", "debug", "silent", "proto"]},
-             {"dest": "confd_addr", "args": ["--confd-addr"],
+             {"dest": "confd_nso_addr", "args": ["--confd-nso-addr"],
               "vals": [str(ApiAdapterDefaults.ADDR), "10.0.0.1"]},
-             {"dest": "api_port", "args": ["--api-port"],
+             {"dest": "confd_nso_port", "args": ["--confd-nso-port"],
               "vals": ["4565", "3210"]},
              {"dest": "monitor_external_changes",
               "args": ["--monitor-external-changes"],

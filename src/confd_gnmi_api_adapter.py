@@ -53,7 +53,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
 
     # call only once!
     @staticmethod
-    def set_debug_level(level):
+    def set_tm_debug_level(level):
         if level == "debug":
             debug_level = _tm.DEBUG
         elif level == "trace":
