@@ -8,6 +8,11 @@ import threading
 import json
 from enum import Enum
 from socket import socket
+import gnmi_pb2
+from confd_gnmi_adapter import GnmiServerAdapter
+from confd_gnmi_api_adapter_defaults import ApiAdapterDefaults
+from confd_gnmi_common import make_xpath_path, make_formatted_path, \
+    add_path_prefix, remove_path_prefix, make_gnmi_path, parse_instance_path
 
 import tm
 _tm = __import__(tm.TM)
@@ -15,12 +20,6 @@ _tm = __import__(tm.TM)
 maapi = __import__(tm.TM[1:]).maapi
 maagic = __import__(tm.TM[1:]).maagic
 cdb = __import__(tm.TM[1:]).cdb.cdb
-
-import gnmi_pb2
-from confd_gnmi_adapter import GnmiServerAdapter
-from confd_gnmi_api_adapter_defaults import ApiAdapterDefaults
-from confd_gnmi_common import make_xpath_path, make_formatted_path, \
-    add_path_prefix, remove_path_prefix, make_gnmi_path, parse_instance_path
 
 log = logging.getLogger('confd_gnmi_api_adapter')
 
@@ -240,7 +239,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                 # op1 .. first operation1, xpath1 .... first xpath, ...
                 # op is string used in ChangeOp Enum class
                 # currently operation can be only "modified"
-                # the size must be smaller then size in recv
+                # the size must be smaller than size in recv
                 data = msg.decode().split('\n')
                 assert len(data) % 3 == 0
                 self._append_changes(EXT_SPOINT, list(self._external_changes(data)))
@@ -486,8 +485,8 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         elif value.confd_type() == _tm.C_BOOL:
             json_value = bool(value)
         elif value.confd_type() == _tm.C_IDENTITYREF:
-            # JSON formatting is different than what ConfD does by default
-            [prefix,idref] = value.val2str(csnode.info().type()).split(":")
+            # JSON formatting is different from what ConfD does by default
+            [prefix, idref] = value.val2str(csnode.info().type()).split(":")
             json_value = f"{self.pfx_to_module[prefix]}:{idref}"
         # empty, leaf-lists...
         else:
@@ -505,7 +504,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
             save_id = trans.save_config(save_flags, str(keypath))
             with socket() as save_sock:
                 _tm.stream_connect(sock=save_sock, id=save_id, flags=0,
-                                      ip=self.addr, port=self.port)
+                                   ip=self.addr, port=self.port)
                 max_msg_size = 1024
                 save_str = b''.join(iter(lambda: save_sock.recv(max_msg_size), b''))
                 if not save_str:

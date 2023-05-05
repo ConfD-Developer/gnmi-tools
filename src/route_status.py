@@ -148,7 +148,7 @@ class RouteProvider:
         tcb = TransCbs(RouteProvider.wrksock)
         dp.register_trans_cb(RouteProvider.ctx, tcb)
         dcb = DataCbs(route_data)
-        # we are not using route_status_ns.ns.callpoint_routestat so we do not
+        # we are not using route_status_ns.ns.callpoint_routestat, so we do not
         # need to generate route-status.yang python binding
         dp.register_data_cb(RouteProvider.ctx, "routestat", dcb)
         dp.register_done(RouteProvider.ctx)

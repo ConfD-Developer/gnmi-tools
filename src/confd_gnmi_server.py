@@ -263,18 +263,18 @@ class ConfDgNMIServicer(gNMIServicer):
         if insecure:
             server.add_insecure_port("[::]:{}".format(port))
         else:
-            assert key_file!= None and crt_file != None
+            assert key_file is not None and crt_file is not None
             with open(key_file, "rb") as k, open(crt_file, "rb") as c:
                 key = k.read()
                 crt = c.read()
             server.add_secure_port("[::]:{}".format(port),
-                           grpc.ssl_server_credentials([(key, crt)]))
+                                   grpc.ssl_server_credentials([(key, crt)]))
         server.start()
         log.info("<== server=%s", server)
         return server
 
 
-def parse_args(args, parser = None):
+def parse_args(args, parser=None):
     log.debug("==> args=%s", args)
     if parser is None:
         parser = argparse.ArgumentParser(description="gNMI Adapter server")

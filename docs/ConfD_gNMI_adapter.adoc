@@ -281,7 +281,7 @@ We can run server in demo mode type (pass `-t demo`) or in the mode against Conf
 host interface and port the server listens for gRPC communication, specify server key and certificate
 or just use insecure communication connection channel.
 
-NOTE:: To switch between `confd` and `nso`, you need to first `unset PYTHONPATH`, source `confdrc` or `ncsrc` and start server in the appropriate mode. E.g.: `unset PYTHONPATH; source $CONFD_DIR/confdrc` and `unset PYTHONPATH; source $NCS_DIR/ncsrc`
+NOTE: To switch between `confd` and `nso`, you need to first `unset PYTHONPATH`, source `confdrc` or `ncsrc` and start server in the appropriate mode. E.g.: `unset PYTHONPATH; source $CONFD_DIR/confdrc; ./src/confd_gnmi_server.py -t confd` or `unset PYTHONPATH; source $NCS_DIR/ncsrc; ./src/confd_gnmi_server.py -t nso`
 
 NOTE: Other parameters may be hardcoded in the source code (mainly in the `./src/confd_gnmi_common.py`).
 
