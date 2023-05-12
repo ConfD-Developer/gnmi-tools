@@ -49,7 +49,6 @@ def test_make_path(path):
 
 def check_in_args(args, check_dict):
     args_dict = vars(args)
-    # print("args_dict={}", args_dict)
     for k, v in check_dict.items():
         assert k in args_dict and str(args_dict[k]) == str(v)
 
@@ -107,21 +106,21 @@ def test_client_argparse():
 @pytest.mark.unit
 def test_server_argparse():
     check_in_args(server_parse_args([]),
-                  {"type": "demo", "logging": "warning", "confd_debug": "debug",
-                   "confd_addr": ApiAdapterDefaults.CONFD_ADDR,
-                   "confd_port": ApiAdapterDefaults.CONFD_PORT,
+                  {"type": "demo", "logging": "warning", "confd_nso_debug": "debug",
+                   "confd_nso_addr": ApiAdapterDefaults.ADDR,
+                   "confd_nso_port": None,
                    "monitor_external_changes": ApiAdapterDefaults.MONITOR_EXTERNAL_CHANGES,
                    "external_port": ApiAdapterDefaults.EXTERNAL_PORT,
                    "cfg": None})
 
     check = [{"dest": "type", "args": ["-t", "--type"],
-              "vals": ["demo", "api"], "invalid": ["netconf"]},
-             {"dest": "confd_debug", "args": ["-d", "--confd-debug"],
+              "vals": ["demo", "confd", "nso"], "invalid": ["netconf"]},
+             {"dest": "confd_nso_debug", "args": ["-d", "--confd-nso-debug"],
               "vals": ["trace", "debug", "silent", "proto"]},
-             {"dest": "confd_addr", "args": ["--confd-addr"],
-              "vals": [str(ApiAdapterDefaults.CONFD_ADDR), "10.0.0.1"]},
-             {"dest": "confd_port", "args": ["--confd-port"],
-              "vals": [str(ApiAdapterDefaults.CONFD_PORT), "3210"]},
+             {"dest": "confd_nso_addr", "args": ["--confd-nso-addr"],
+              "vals": [str(ApiAdapterDefaults.ADDR), "10.0.0.1"]},
+             {"dest": "confd_nso_port", "args": ["--confd-nso-port"],
+              "vals": ["4565", "3210"]},
              {"dest": "monitor_external_changes",
               "args": ["--monitor-external-changes"],
               "vals": []},

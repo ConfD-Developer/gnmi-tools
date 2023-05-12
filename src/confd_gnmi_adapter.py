@@ -129,7 +129,7 @@ class GnmiServerAdapter(ABC):
         def start_monitoring(self):
             """
             Start monitoring for changes.
-            This method should be non blocking.
+            This method should be non-blocking.
             :return:
             """
             pass
@@ -271,7 +271,7 @@ class GnmiServerAdapter(ABC):
                     interval_mod = (
                                                curr - first_sample_time) % s.sample_interval
                     interval_candidate = s.sample_interval - interval_mod
-                    if interval == None:
+                    if interval is None:
                         interval = interval_candidate
                     # todo some threshold ?
                     if interval == interval_candidate:
@@ -308,7 +308,7 @@ class GnmiServerAdapter(ABC):
 
             for s in sample_subscriptions:
                 if self.monitoring and s.mode == gnmi_pb2.SubscriptionMode.ON_CHANGE:
-                    self.add_path_for_monitoring(s.path,self.subscription_list.prefix)
+                    self.add_path_for_monitoring(s.path, self.subscription_list.prefix)
 
             while True:
                 log.debug("Processing event type %s", event)
@@ -329,7 +329,7 @@ class GnmiServerAdapter(ABC):
                             self._get_next_sample_interval_and_subscriptions(
                                 first_sample_time)
                     if next_sample_interval:
-                        #convert to seconds
+                        # convert to seconds
                         next_sample_interval = float(next_sample_interval / 1000000000)
                 elif event == self.SubscriptionEvent.FINISH:
                     log.debug("finishing subscription read")
@@ -352,7 +352,7 @@ class GnmiServerAdapter(ABC):
                     # TODO error
                     break
                 log.debug("Waiting for event next_sample_interval=%s",
-                         next_sample_interval)
+                          next_sample_interval)
                 try:
                     event = self.read_queue.get(timeout=next_sample_interval)
                 except Empty:

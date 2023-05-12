@@ -25,6 +25,7 @@ from gnmi_pb2_grpc import gNMIStub
 log = logging.getLogger('confd_gnmi_client')
 log_rpc = logging.getLogger('confd_gnmi_rpc')   # "gNMI RPC only" dedicated logger
 
+
 def logged_rpc_call(rpc_name: str, request, rpc_call):
     log_rpc.debug("RPC - %sRequest:\n%s", rpc_name, str(request))
     response = rpc_call()
@@ -363,8 +364,8 @@ if __name__ == '__main__':
             print("  supported models:")
             for m in capabilities.supported_models:
                 print("name: {} organization: {} version: {}".format(m.name,
-                                                                   m.organization,
-                                                                   m.version))
+                                                                     m.organization,
+                                                                     m.version))
             encodings = [encoding_int_to_str(encoding)
                          for encoding in capabilities.supported_encodings]
             print(f"  supported encodings: {encodings}")

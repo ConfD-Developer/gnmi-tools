@@ -97,7 +97,7 @@ def parse_instance_path(xpath_string) -> Iterable[Tuple[str, List[Tuple[str, str
     for match in tag_rx.finditer(xpath_string):
         mdict = match.groupdict()
         keys = [pred.groups() for pred in predicate_rx.finditer(mdict['preds'])]
-        yield (mdict['tag'], keys)
+        yield mdict['tag'], keys
 
 
 # Crate gNMI Path object from string representation of path
@@ -213,21 +213,26 @@ def _convert_enum_format(constructor, value, exception_str, do_return_unknown, u
             return unknown_value
         raise ValueError(exception_str) from ex
 
+
 def datatype_str_to_int(data_type: str, no_error=False) -> int:
     """ Convert text representation of DataType to standardized integer. """
     return _convert_enum_format(gnmi_pb2.GetRequest.DataType.Value, data_type,
-                                f'Unknown DataType! ({data_type})', no_error, -1)
+                                f'Unknown DataType! ({data_type})', no_error,
+                                -1)
+
 
 def encoding_str_to_int(encoding: str, no_error=False) -> int:
     """ Convert text representation of Encoding to standardized integer. """
     return _convert_enum_format(gnmi_pb2.Encoding.Value, encoding,
                                 f'Unknown Encoding! ({encoding})', no_error, -1)
 
+
 def encoding_int_to_str(encoding: int, no_error=False) -> str:
     """ Convert integer representation of Encoding to standardized string. """
     return _convert_enum_format(gnmi_pb2.Encoding.Name, encoding,
                                 f'Unknown Encoding value! ({encoding})',
                                 no_error, f'UNKNOWN({encoding})')
+
 
 def subscription_mode_str_to_int(mode: str, no_error=False) -> int:
     """ Convert text representation of SubscriptionList to standardized integer. """

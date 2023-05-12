@@ -241,33 +241,33 @@ Server is started by running  `./src/confd_gnmi_server.py` python script.
 .output
 [source, shell]
 ----
-usage: confd_gnmi_server.py [-h] [-v] [-t {api,demo}]
+$ ./src/confd_gnmi_server.py -h
+usage: confd_gnmi_server.py [-h] [-v] [-t {demo,confd,nso}]
                             [--logging {error,warning,info,debug}] [--insecure]
-                            [--port PORT] [--host HOST]
-                            [-d {trace,debug,silent,proto}]
-                            [--confd-addr CONFD_ADDR] [--confd-port CONFD_PORT]
-                            [--monitor-external-changes]
-                            [--external-port EXTERNAL_PORT] [--cfg CFG]
-                            [--key KEY] [--crt CRT]
+                            [--port PORT] [--host HOST] [-d {trace,debug,silent,proto}]
+                            [--confd-nso-addr CONFD_NSO_ADDR]
+                            [--confd-nso-port CONFD_NSO_PORT]
+                            [--monitor-external-changes] [--external-port EXTERNAL_PORT]
+                            [--cfg CFG] [--key KEY] [--crt CRT]
 
 gNMI Adapter server
 
 options:
   -h, --help            show this help message and exit
   -v, --version         show program's version number and exit
-  -t {api,demo}, --type {api,demo}
+  -t {demo,confd,nso}, --type {demo,confd,nso}
                         gNMI server type
   --logging {error,warning,info,debug}
                         Logging level
   --insecure            Use insecure connection
   --port PORT           port number (default: 50061)
   --host HOST           host (name, ip, default: localhost)
-  -d {trace,debug,silent,proto}, --confd-debug {trace,debug,silent,proto}
-                        ConfD debug level
-  --confd-addr CONFD_ADDR
-                        ConfD IP address (default is 127.0.0.1)
-  --confd-port CONFD_PORT
-                        ConfD port (default is 4565)
+  -d {trace,debug,silent,proto}, --confd-nso-debug {trace,debug,silent,proto}
+                        ConfD or NSO debug level
+  --confd-nso-addr CONFD_NSO_ADDR
+                        ConfD or NSO IP address (default is 127.0.0.1)
+  --confd-nso-port CONFD_NSO_PORT
+                        IPC port (ConfD or NSO)
   --monitor-external-changes
                         start external changes service
   --external-port EXTERNAL_PORT
@@ -277,10 +277,11 @@ options:
   --crt CRT             Path to the server certificate.
 ----
 
-We can run server in demo mode type (pass `-t demo`) or in API (`maapi`) mode against ConfD (pass `-t api`). Other modes (like `netconf` are currently not supported). For `demo` mode type, it may be necessary to pass config file (e.g. for `STREAM` subscriptions, `--cfg=data/demo.xml). We can pass
+We can run server in demo mode type (pass `-t demo`) or in the mode against ConfD (pass `-t confd`) or NSO (pass `-t nso`). Other modes (like `netconf` are currently not supported). For `demo` mode type, it may be necessary to pass config file (e.g. for `STREAM` subscriptions, `--cfg=data/demo.xml). We can pass
 host interface and port the server listens for gRPC communication, specify server key and certificate
 or just use insecure communication connection channel.
 
+NOTE: To switch between `confd` and `nso`, you need to first `unset PYTHONPATH`, source `confdrc` or `ncsrc` and start server in the appropriate mode. E.g.: `unset PYTHONPATH; source $CONFD_DIR/confdrc; ./src/confd_gnmi_server.py -t confd` or `unset PYTHONPATH; source $NCS_DIR/ncsrc; ./src/confd_gnmi_server.py -t nso`
 
 NOTE: Other parameters may be hardcoded in the source code (mainly in the `./src/confd_gnmi_common.py`).
 
@@ -395,6 +396,12 @@ NOTE: Other parameters may be currently hardcoded in the source code (mainly in 
 [source, shell, role="acopy"]
 ----
 ./src/confd_gnmi_client.py -o  get --prefix /ietf-interfaces:interfaces --path interface
+----
+
+.get values for `python-vm` from NSO when started in `-t nso` mode type
+[source, shell, role="acopy"]
+----
+./src/confd_gnmi_client.py -o get --path /python-vm
 ----
 
 .set value of `leaf` element
@@ -558,9 +565,9 @@ both type of subscriptions.
 [#ext_change]
 === External ConfD data provider and monitoring of changes
 
-State (operational) data can be stored in the ConfD CDB, or they can be provided
-to ConfD by external application (called data provider).
-In the first case (data stored in the CDB) the ConfD can monitor itself the
+State (operational) data can be stored in the ConfD/NSO CDB, or they can be provided
+to ConfD/NSO by external application (called data provider).
+In the first case (data stored in the CDB) the ConfD/NSO can monitor itself the
 changes to the values and inform the gNMI Adapter server about subscription changes.
 In the second case (data provided by data provider) the ConfD cannot
 monitor changes. The data provider application has to provide such information.
@@ -575,7 +582,7 @@ the gNMI Adapter directly. We have added simple socket based protocol to the
 gNMI Adapter server. For implementation details see sub-section
 <<ext_change_impl, Monitoring of external changes>> inside <<Implementation>> section.
 
-NOTE: This functionality is implemented only for ConfD API adapter type (use `-t api` when starting the gNMI Adapter server).
+NOTE: This functionality is implemented only for ConfD or NSO API adapter type (use `-t confd` or `-t nso` when starting the gNMI Adapter server).
 
 ==== Examples of data provider and external monitoring usage
 
@@ -583,7 +590,7 @@ With gNMI Adapter source code comes example implementation of
 a simple data provider (`route-status.yang` and `src/route_status.py`).
 
 The data provider provides data for `route-status.yang` data model and
-randomly generates changes.  Data provider is source of the data, not ConfD CDB.
+randomly generates changes.  Data provider is source of the data, not the CDB.
 
 TIP: It's convenient to start following components in separate terminal shells.
 
@@ -613,7 +620,7 @@ This is normal.
 .Start gNMI Adapter server (with support for external monitoring)
 [source, shell, role="acopy"]
 ----
-./src/confd_gnmi_server.py -t api --monitor-external-changes
+./src/confd_gnmi_server.py -t confd --monitor-external-changes
 ----
 
 .Get `route-status` (state) data
@@ -696,7 +703,7 @@ endif::[]
 ** contains subscription handle for subscription functionality
 ** SubscriptionHandler - abstract class
 *** implements methods to handle subscriptions
-* GnmiConfDApiServerAdapter - adapter using ConfD
+* GnmiConfDApiServerAdapter - adapter using ConfD/NSO
 ** GnmiConfDApiServerAdapter.SubscriptionHandler
 * GnmiDemoServerAdapter - adapter using demo data (for testing, development, presentation)
 ** GnmiDemoServerAdapter.SubscriptionHandler
@@ -954,8 +961,8 @@ endif::[]
 
 As described in the section <<ext_change,External ConfD data provider and monitoring of changes>>, the gNMI Adapter server can receive information about changes from the other source than ConfD. For this we start the gNMI Adapter server with `--monitor-external-changes` option.
 
-NOTE: Currently, this functionality is implemented only in ConfD API Adapter subcomponent
-(`-t api`).
+NOTE: Currently, this functionality is implemented only in ConfD/NSO Adapter subcomponent
+(`-t confd` or `-t nso`).
 
 In this case, the ConfD API component (GnmiConfDApiServerAdapter`) of the gNMI Adapter server listens not only for ConfD events, but also for events on standard TCP socket (opened on port passed in `--external-port` option - default 5055).
 
