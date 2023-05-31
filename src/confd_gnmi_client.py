@@ -76,7 +76,8 @@ class ConfDgNMIClient:
     @staticmethod
     def make_subscription_list(prefix, paths, mode, encoding,
                                stream_mode=gnmi_pb2.SubscriptionMode.ON_CHANGE,
-                               sample_interval_ms: int = None):
+                               sample_interval_ms: int = None,
+                               allow_aggregation: bool = False):
         log.debug("==> mode=%s", mode)
         qos = gnmi_pb2.QOSMarking(marking=1)
         subscriptions = []
@@ -97,7 +98,7 @@ class ConfDgNMIClient:
             subscription=subscriptions,
             qos=qos,
             mode=mode,
-            allow_aggregation=False,
+            allow_aggregation=allow_aggregation,
             use_models=[],
             encoding=encoding,
             updates_only=False
@@ -290,6 +291,8 @@ def parse_args(args):
                         default=None)
     parser.add_argument("--interactive-poll", action="store_true", dest="interactivepoll",
                         help="Poll subscription invoked interactively.")
+    parser.add_argument("--allow-aggregation", action="store_true", dest="allowaggregation",
+                        help="Set allow aggregation option when invoking subscription.")
     parser.add_argument("--subscription-end-delay", action="store", dest="subscription_end_delay",
                         type=float,
                         help="Time to wait (in seconds) to finish stream after all "
@@ -330,6 +333,7 @@ if __name__ == '__main__':
     subscription_mode = subscription_mode_str_to_int(opt.submode)
     poll_interval: float = opt.pollinterval
     sample_interval: int = opt.sampleinterval
+    allow_aggregation: bool = opt.allowaggregation
     poll_count: int = opt.pollcount
     interactive_poll: bool = opt.interactivepoll
     read_count: int = opt.readcount
@@ -337,10 +341,10 @@ if __name__ == '__main__':
 
     log.debug("datatype=%s subscription_mode=%s poll_interval=%s "
               "poll_count=%s read_count=%s subscription_end_delay=%s "
-              "interactive_poll=%s sample_interval=%s",
+              "interactive_poll=%s sample_interval=%s allow_aggregation=%s",
               datatype, subscription_mode, poll_interval, poll_count,
               read_count, subscription_end_delay, interactive_poll,
-              sample_interval)
+              sample_interval, allow_aggregation)
     if opt.submode != "STREAM":
         read_count = -1
 
@@ -349,10 +353,11 @@ if __name__ == '__main__':
         subscription_list = ConfDgNMIClient.make_subscription_list(
             prefix, paths, subscription_mode, encoding,
             stream_mode=gnmi_pb2.SubscriptionMode.SAMPLE,
-            sample_interval_ms=sample_interval)
+            sample_interval_ms=sample_interval,
+            allow_aggregation=allow_aggregation)
     else:
         subscription_list = ConfDgNMIClient.make_subscription_list(
-            prefix, paths, subscription_mode, encoding)
+            prefix, paths, subscription_mode, encoding, allow_aggregation=allow_aggregation)
 
     with closing(ConfDgNMIClient(opt.host, opt.port, insecure=opt.insecure,
                                  server_crt_file=opt.servercrt,

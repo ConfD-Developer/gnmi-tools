@@ -3,6 +3,9 @@ from confd_gnmi_adapter import GnmiServerAdapter
 
 class GnmiNetconfServerAdapter(GnmiServerAdapter):
 
+    def encodings(self) -> list[int]:
+        pass
+
     @classmethod
     def get_adapter(cls):
         pass

@@ -39,7 +39,7 @@ OC_YANG = $(shell grep -L ^submodule oc/*.yang)
 OC_FXS = $(OC_YANG:oc/%.yang=%.fxs)
 
 all: gnmi_proto \
-	iana-if-type.fxs ietf-interfaces.fxs route-status.fxs $(OC_FXS) \
+	gnmi-tools.fxs iana-if-type.fxs ietf-interfaces.fxs route-status.fxs $(OC_FXS) \
 	$(CDB_DIR) ssh-keydir init_interfaces.xml
 	@echo "Build complete"
 
@@ -80,6 +80,7 @@ start:  stop
 	| confd_load -mOl
 	xmlstarlet ed -d '/*//*[name()="config"]' oc-components.xml \
 	| confd_load -mOl
+	confd_load -m -l ./gnmi-tools.xml
 
 ######################################################################
 stop:

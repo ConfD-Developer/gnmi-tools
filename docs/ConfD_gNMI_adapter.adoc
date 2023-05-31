@@ -298,7 +298,7 @@ Client is implemented by `./src/confd_gnmi_client.py` python script.
 .output
 [source, shell]
 ----
-$ ./src/confd_gnmi_client.py -h
+ $ ./src/confd_gnmi_client.py --help
 usage: confd_gnmi_client.py [-h] [--version]
                             [-o {capabilities,set,get,delete,subscribe}]
                             [--logging {error,warning,info,debug}] [--insecure]
@@ -308,11 +308,11 @@ usage: confd_gnmi_client.py [-h] [--version]
                             [--poll-count POLLCOUNT]
                             [--poll-interval POLLINTERVAL]
                             [--sample-interval SAMPLEINTERVAL]
-                            [--interactive-poll]
+                            [--interactive-poll] [--allow-aggregation]
                             [--subscription-end-delay SUBSCRIPTION_END_DELAY]
                             [--read-count READCOUNT] [--server-crt SERVERCRT]
                             [--user USERNAME] [--password PASSWORD]
-                            [--encoding {JSON,JSON_IETF}]
+                            [--encoding {JSON,JSON_IETF,PROTO}]
 
 gNMI Adapter client
 
@@ -347,6 +347,7 @@ options:
                         subscription mode(if set, SAMPLE Subscriptions are
                         created)
   --interactive-poll    Poll subscription invoked interactively.
+  --allow-aggregation   Set allow aggregation option when invoking subscription.
   --subscription-end-delay SUBSCRIPTION_END_DELAY
                         Time to wait (in seconds) to finish stream after all
                         subscription requests (default 0.0)
@@ -357,7 +358,7 @@ options:
                         Path to the server certificate.
   --user USERNAME       User (default 'admin')
   --password PASSWORD   Password (default 'admin')
-  --encoding {JSON,JSON_IETF}
+  --encoding {JSON,JSON_IETF,PROTO}
                         Requested encoding for get and subscribe (default
                         'JSON_IETF')
 ----

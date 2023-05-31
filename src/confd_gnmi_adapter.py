@@ -86,7 +86,7 @@ class GnmiServerAdapter(ABC):
             ASYNC_FINISH = 15
 
         def __init__(self, adapter, subscription_list):
-            self.adapter = adapter
+            self.adapter: GnmiServerAdapter = adapter
             self.subscription_list = subscription_list
             self.read_queue = None
             self.monitoring = False
@@ -95,12 +95,12 @@ class GnmiServerAdapter(ABC):
                 self.monitoring = self._is_monitor_changes()
 
         @abstractmethod
-        def get_sample(self, path, prefix) -> List:
+        def get_sample(self, path, prefix, allow_aggregation=False) -> List:
             """
             Create gNMI subscription updates for given path and prefix
             :param path: gNMI path for updates
             :param prefix: gNMI prefix
-            #TODO do we need to return array or would just one Update be enough?
+            :param allow_aggregation - allow aggregation of values into one update
             :return: gNMI update array
             """
             pass
@@ -215,9 +215,14 @@ class GnmiServerAdapter(ABC):
             """
             log.debug("==> subscriptions=%s", subscriptions)
             update = []
+            allow_aggregation = False
+            if hasattr(self.subscription_list, "allow_aggregation") \
+                    and self.subscription_list.allow_aggregation:
+                allow_aggregation = True
             for s in subscriptions:
                 update.extend(self.get_sample(path=s.path,
-                                              prefix=self.subscription_list.prefix))
+                                              prefix=self.subscription_list.prefix,
+                                              allow_aggregation=allow_aggregation))
             notif = gnmi_pb2.Notification(timestamp=0,
                                           prefix=self.subscription_list.prefix,
                                           update=update,
@@ -227,7 +232,8 @@ class GnmiServerAdapter(ABC):
             log.debug("<== response=%s", response)
             return response
 
-        def sync_response(self):
+        @staticmethod
+        def sync_response():
             """
             create SubscribeResponse with  sync_response set to True
             :return: SubscribeResponse with sync_response set to True
