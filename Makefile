@@ -76,6 +76,10 @@ start:  stop
 	confd_load -m -l ./init_interfaces.xml
 	confd_load -m -O -l ./init_interfaces_state.xml
 	confd_load -mol ./oc-interfaces.xml ./oc-components.xml
+	xmlstarlet ed -d '/*//*[name()="config"]' oc-interfaces.xml \
+	| confd_load -mOl
+	xmlstarlet ed -d '/*//*[name()="config"]' oc-components.xml \
+	| confd_load -mOl
 
 ######################################################################
 stop:
