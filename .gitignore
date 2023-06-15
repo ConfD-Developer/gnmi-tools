@@ -8,3 +8,12 @@ confd-cdb/
 ssh-keydir
 *.fxs
 init_*.xml
+confderr.*
+audit.log
+browser.log
+confd.log
+devel.log
+netconf.log
+localhost*access
+global.data
+local.data
