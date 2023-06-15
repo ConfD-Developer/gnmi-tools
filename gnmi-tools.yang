@@ -4,34 +4,34 @@ module gnmi-tools {
 
   description
     "This module contains a YANG data model for gnmi tools testing and
-      development.";
+                                                       development.";
 
   grouping combo {
     leaf empty-leaf { type empty; }
     container down {
-        leaf str-leaf {type string; }
-        leaf int-leaf {type int32; }
+      leaf str-leaf {type string; }
+      leaf int-leaf {type int32; }
     }
     container pres {
-        presence true;
+      presence true;
     }
   }
 
   container gnmi-tools {
-      container top {
-        uses combo;
-      }
+    container top {
+      uses combo;
+    }
 
-      container top-pres {
-        presence true;
-        uses combo;
-      }
+    container top-pres {
+      presence true;
+      uses combo;
+    }
 
-      list top-list {
-        key name;
-        leaf name {type string;}
-        uses combo;
-      }
+    list top-list {
+      key name;
+      leaf name {type string;}
+      uses combo;
+    }
   }
 
 }

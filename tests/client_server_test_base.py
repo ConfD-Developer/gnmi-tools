@@ -251,9 +251,10 @@ class GrpcBase(object):
                                      if_id)]
         list_paths = [
             GrpcBase.mk_gnmi_if_path(self.list_paths_str[0], if_state_str,
-                                     if_id)]
-        list_paths.extend([GrpcBase.mk_gnmi_if_path(self.list_paths_str[1]),
-            GrpcBase.mk_gnmi_if_path(self.list_paths_str[2].format(prefix_state_str))])
+                                     if_id),
+            GrpcBase.mk_gnmi_if_path(self.list_paths_str[1]),
+            GrpcBase.mk_gnmi_if_path(self.list_paths_str[2].format(prefix_state_str)),
+        ]
         ifname = "{}if_{}".format(if_state_str, if_id)
 
         if is_subscribe:

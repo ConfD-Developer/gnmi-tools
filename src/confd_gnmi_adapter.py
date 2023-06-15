@@ -215,14 +215,11 @@ class GnmiServerAdapter(ABC):
             """
             log.debug("==> subscriptions=%s", subscriptions)
             update = []
-            allow_aggregation = False
-            if hasattr(self.subscription_list, "allow_aggregation") \
-                    and self.subscription_list.allow_aggregation:
-                allow_aggregation = True
+
             for s in subscriptions:
                 update.extend(self.get_sample(path=s.path,
                                               prefix=self.subscription_list.prefix,
-                                              allow_aggregation=allow_aggregation))
+                                              allow_aggregation=self.subscription_list.allow_aggregation))
             notif = gnmi_pb2.Notification(timestamp=0,
                                           prefix=self.subscription_list.prefix,
                                           update=update,
