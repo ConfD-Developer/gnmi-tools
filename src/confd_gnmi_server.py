@@ -99,7 +99,6 @@ class ConfDgNMIServicer(gNMIServicer):
         self._ensure_encoding_supported(encoding, adapter, context)
         log.debug("==>")
 
-
     def get_connected_adapter(self, context):
         """
         Get adapter and connect it to ConfD if needed

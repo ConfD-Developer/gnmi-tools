@@ -133,12 +133,15 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         def get_monitored_changes(self):
             raise NotImplementedError
 
-        def get_sample(self, path, prefix,
+        def get_sample(self, path, prefix, allow_aggregation=False,
                        start_change_processing=False):
             log.debug("==>")
             pathstr = make_xpath_path(path, prefix, quote_val=True)
+            confd_path = make_formatted_path(path, prefix, quote_val=True)
             datatype = gnmi_pb2.GetRequest.DataType.ALL
-            updates = self.adapter.get_updates_with_maapi_save(pathstr, datatype)
+            updates = self.adapter.get_updates_with_maapi(pathstr, datatype,
+                                                          confd_path=confd_path,
+                                                          allow_aggregation=allow_aggregation)
             sample = [gnmi_pb2.Update(path=remove_path_prefix(u.path, prefix),
                                       val=u.val)
                       for u in updates]
@@ -288,7 +291,8 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
             log.debug("<== has_non_cdb=%s", has_non_cdb)
             return has_non_cdb
 
-        def start_external_change_server(self):
+        @staticmethod
+        def start_external_change_server():
             """
             Start external change server
             :return: socket to listen for changes
@@ -476,7 +480,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
 
     def make_gnmi_keypath(self, keypath, csnode=None):
         if csnode is None:
-            csnode = _tm.cs_node_cd(None, _tm.pp_kpath(keypath))
+            csnode = _tm.cs_node_cd(None, str(keypath))
         return gnmi_pb2.Path(elem=list(self.make_gnmi_keypath_elems(keypath, csnode)))
 
     def make_gnmi_json_value(self, value, csnode):
@@ -494,7 +498,63 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         gnmi_value = gnmi_pb2.TypedValue(json_ietf_val=json.dumps(json_value).encode())
         return gnmi_value
 
-    def get_updates(self, trans, path_str, save_flags):
+    def append_update(self, tr, path_str, csnode=None):
+        if csnode is None:
+            csnode = _tm.cs_node_cd(None, path_str)
+
+        def append_update_inner():
+            if tr.exists(path_str):
+                gnmi_value = None
+                if csnode.is_empty_leaf():
+                    # See https://datatracker.ietf.org/doc/html/rfc7951#section-6.9
+                    gnmi_value = gnmi_pb2.TypedValue(
+                        json_ietf_val=json.dumps([None]).encode())
+                elif csnode.is_p_container():
+                    gnmi_value = gnmi_pb2.TypedValue(
+                        json_ietf_val=json.dumps({}).encode())
+                else:
+                    elem = tr.get_elem(path_str)
+                    if csnode.info().defval() != elem:  # skip default values
+                        gnmi_value = self.make_gnmi_json_value(elem, csnode)
+                if gnmi_value is not None:
+                    tr.pushd(path_str)
+                    kp = tr.getcwd_kpath()
+                    tr.popd()
+                    gnmi_path = self.make_gnmi_keypath(kp, csnode)
+                    yield gnmi_pb2.Update(path=gnmi_path, val=gnmi_value)
+
+        # tr.get_elem(path_str) throws exception even though tr.exists(path_str)
+        # returns True, special handling for oper is needed
+        try:
+            yield from append_update_inner()
+        except _tm.error.Error:
+            pass
+
+    def make_updates_with_maagic_rec(self, tr, node):
+        if isinstance(node, maagic.Node):
+            if isinstance(node, maagic.List):
+                for n in node:
+                    yield from self.make_updates_with_maagic_rec(tr, n)
+            elif isinstance(node, maagic.Leaf):
+                yield from self.append_update(tr, node._path, node._cs_node)
+            else:
+                children = node._children.get_children(node._backend, node)
+                if len(children) == 0 and isinstance(node,
+                                                     maagic.PresenceContainer):
+                    yield from self.append_update(tr, node._path, node._cs_node)
+                else:
+                    for n in children:
+                        yield from self.make_updates_with_maagic_rec(tr, n)
+
+    def make_updates_with_maagic(self, tr, path_str):
+        node = maagic.get_node(tr, path_str)
+        if not isinstance(node, maagic.Node):
+            yield from self.append_update(tr, path_str)
+        else:
+            yield from self.make_updates_with_maagic_rec(tr, node)
+
+
+    def get_updates(self, trans, path_str, confd_path, save_flags, allow_aggregation=False):
         log.debug("==> path_str=%s", path_str)
         tagpath = '/' + '/'.join(tag for tag, _ in parse_instance_path(path_str))
         csnode = _tm.cs_node_cd(None, tagpath)
@@ -522,10 +582,14 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                 gnmi_value = gnmi_pb2.TypedValue(json_ietf_val=json.dumps(data).encode())
                 updates.append(gnmi_pb2.Update(path=gnmi_path, val=gnmi_value))
 
-        if csnode is None:
-            log.warning('failed to find the cs-node')
+        if allow_aggregation:
+            if csnode is None:
+                log.warning('failed to find the cs-node')
+            else:
+                trans.xpath_eval(path_str, add_update_json, None, '/')
         else:
-            trans.xpath_eval(path_str, add_update_json, None, '/')
+            updates = list(self.make_updates_with_maagic(trans, confd_path))
+
         log.debug("<== save_str=%s", updates)
         return updates
 
@@ -535,10 +599,12 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
             return self.module_to_pfx.get(name, name) + ':'
         return re.sub(r'([^/:]+):', module_to_prefix, path)
 
-    def get_updates_with_maapi_save(self, path, data_type):
+    def get_updates_with_maapi(self, path, data_type, confd_path=None, allow_aggregation=False):
         log.debug("==> path=%s data_type=%s", path, data_type)
 
         pfx_path = self.fix_path_prefixes(path)
+        if confd_path is not None:
+            confd_path = self.fix_path_prefixes(confd_path)
         save_flags = _tm.maapi.CONFIG_JSON | _tm.maapi.CONFIG_NO_PARENTS
         db = _tm.OPERATIONAL
 
@@ -557,7 +623,8 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         try:
             with maapi.single_read_trans(self.username, context, groups, db=db,
                                          src_ip=self.addr, src_port=self.port) as t:
-                updates = self.get_updates(t, pfx_path, save_flags)
+                updates = self.get_updates(t, pfx_path, confd_path, save_flags,
+                                           allow_aggregation=allow_aggregation)
         except Exception as e:
             log.exception(e)
 
@@ -568,8 +635,8 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         log.info("==> prefix=%s, paths=%s, data_type=%s, use_models=%s",
                  prefix, paths, data_type, use_models)
         notifications = []
-        updates2 = [self.get_updates_with_maapi_save(make_xpath_path(path, prefix, quote_val=True),
-                                                     data_type)
+        updates2 = [self.get_updates_with_maapi(make_xpath_path(path, prefix, quote_val=True),
+                                                data_type, allow_aggregation=True)
                     for path in paths]
         updates = [gnmi_pb2.Update(path=remove_path_prefix(update.path, prefix), val=update.val)
                    for u_list in updates2

@@ -20,7 +20,7 @@ _confd_DEBUG = 1
 @pytest.mark.grpc
 @pytest.mark.confd
 @pytest.mark.usefixtures("fix_method")
-class TestGrpcApi(GrpcBase):
+class TestGrpcConfD(GrpcBase):
 
     def set_adapter_type(self):
         self.adapter_type = AdapterType.API
@@ -60,6 +60,66 @@ class TestGrpcApi(GrpcBase):
                     log.debug("Cannot connect to change server!")
 
         log.info("<==")
+
+    # TODO tests of gnmi_tools data model also for demo ?
+    def _test_gnmi_tools_get_subscribe_gnmi_tools(self, is_subscribe=False,
+                                                  datatype=gnmi_pb2.GetRequest.DataType.CONFIG,
+                                                  subscription_mode=gnmi_pb2.SubscriptionList.ONCE,
+                                                  poll_interval=0,
+                                                  poll_count=0, read_count=-1,
+                                                  sample_interval = None,
+                                                  encoding = gnmi_pb2.Encoding.JSON_IETF,
+                                                  allow_aggregation=True):
+
+        kwargs = {"assert_fun": GrpcBase.assert_updates}
+        kwargs["prefix"] = make_gnmi_path("/gnmi-tools:gnmi-tools")
+
+        if is_subscribe:
+            verify_response_updates = self.verify_sub_sub_response_updates
+            kwargs["subscription_mode"] = subscription_mode
+            kwargs["poll_interval"] = poll_interval
+            kwargs["poll_count"] = poll_count
+            kwargs["read_count"] = read_count
+            kwargs["sample_interval"] = sample_interval
+            kwargs["allow_aggregation"] = allow_aggregation
+        else:
+            verify_response_updates = self.verify_get_response_updates
+            kwargs["datatype"] = datatype
+
+        leaf_paths_val = [(GrpcBase.mk_gnmi_if_path(p[0]), p[1]) for p in self.gnmi_tools_leaf_paths_str_val]
+
+        kwargs["encoding"] = encoding
+        kwargs["paths"] = [ p[0] for p in leaf_paths_val]
+        kwargs["path_value"] = [p for p in leaf_paths_val]
+        verify_response_updates(**kwargs)
+
+    @pytest.mark.confd
+    def test_gnmi_tools_get(self, request):
+        log.info("testing get")
+        self._test_gnmi_tools_get_subscribe_gnmi_tools()
+
+    @pytest.mark.confd
+    def test_gnmi_tools_subscribe_once(self, request):
+        log.info("testing subscribe_once")
+        self._test_gnmi_tools_get_subscribe_gnmi_tools(is_subscribe=True, allow_aggregation=False)
+
+    @pytest.mark.long
+    @pytest.mark.confd
+    @pytest.mark.parametrize("poll_args", [(0.2, 2), (0.5, 2), (1, 2)])
+    def test_gnmi_tools_subscribe_poll(self, request, poll_args):
+        log.info("testing subscribe_poll")
+        self._test_gnmi_tools_get_subscribe_gnmi_tools(is_subscribe=True,
+                                 subscription_mode=gnmi_pb2.SubscriptionList.POLL,
+                                 poll_interval=poll_args[0],
+                                 poll_count=poll_args[1],
+                                 allow_aggregation=False)
+
+    @pytest.mark.confd
+    def test_gnmi_tools_subscribe_stream_sample(self, request):
+        log.info("testing subscribe_stream_sample")
+        self._test_gnmi_tools_get_subscribe_gnmi_tools(is_subscribe=True,
+                                 subscription_mode=gnmi_pb2.SubscriptionList.STREAM,
+                                 sample_interval=1000, read_count=2, allow_aggregation=False)
 
     @pytest.mark.long
     @pytest.mark.confd

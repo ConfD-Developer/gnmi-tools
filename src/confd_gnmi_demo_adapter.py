@@ -151,16 +151,18 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
             self.change_thread = None
             self.change_event_queue = None
 
-        def get_sample(self, path, prefix) -> []:
+        def get_sample(self, path, prefix, allow_aggregation=False) -> []:
             log.debug("==> path=%s prefix=%s", path, prefix)
-
-            with self.adapter.db_lock:
-                updates = self.adapter.get_db_updates_for_path(path, prefix,
-                                                               self.adapter.demo_db)
+            adapter: GnmiDemoServerAdapter = self.adapter
+            with adapter.db_lock:
+                updates = adapter.get_db_updates_for_path(path, prefix,
+                                                          adapter.demo_db,
+                                                          allow_aggregation)
                 # 'if' below is optimization
                 if len(updates) == 0:
-                    updates = self.adapter.get_db_updates_for_path(path, prefix,
-                                                                   self.adapter.demo_state_db)
+                    updates = adapter.get_db_updates_for_path(path, prefix,
+                                                              adapter.demo_state_db,
+                                                              allow_aggregation)
 
             log.debug("<== updates=%s", updates)
             return updates
@@ -353,7 +355,7 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
     def encodings(self):
         return [gnmi_pb2.Encoding.JSON, gnmi_pb2.Encoding.JSON_IETF]
 
-    def get_db_updates_for_path(self, path, prefix, db):
+    def get_db_updates_for_path(self, path, prefix, db, allow_aggregation=False):
         log.debug("==> path={} prefix={}".format(path, prefix))
 
         path_with_prefix = make_xpath_path(gnmi_path=path,
@@ -366,7 +368,7 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
         path_val_list = []
         map_db = self._demo_db_to_key_elem_map(db)
         ifaces = self._nsless_xpath(path_with_prefix)
-        if ifaces == "/interfaces" or ifaces == "/interfaces-state":
+        if allow_aggregation and ifaces == "/interfaces" or ifaces == "/interfaces-state":
             if list(db.keys())[0].startswith(ifaces):
                 path_val_list = [
                     (path_with_prefix, {"interface": list(map_db.values())})]
@@ -378,17 +380,22 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
                     paths.append(p)
             keys_done = set()
             for p in paths:
-                key = self._get_key_from_xpath(p)
-                if key in keys_done:
-                    continue
-                keys_done.add(key)
-                elem_val = map_db[key]
-                path_elem = self._get_elem_from_xpath(path_with_prefix)
                 path = p
-                if path_elem:
-                    elem_val = elem_val[path_elem]
+                if not allow_aggregation:
+                    elem_val = db[path]
+                    if p.endswith("type"):
+                        elem_val = self.NS_IANA + elem_val
                 else:
-                    path = p.replace("/type", "").replace("/name", "")
+                    key = self._get_key_from_xpath(p)
+                    if key in keys_done:
+                        continue
+                    keys_done.add(key)
+                    elem_val = map_db[key]
+                    path_elem = self._get_elem_from_xpath(path_with_prefix)
+                    if path_elem:
+                        elem_val = elem_val[path_elem]
+                    else:
+                        path = p.replace("/type", "").replace("/name", "")
                 path_val_list.append((path, elem_val))
 
         if len(path_val_list):
@@ -409,10 +416,12 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
         with self.db_lock:
             if data_type == gnmi_pb2.GetRequest.DataType.CONFIG or \
                     data_type == gnmi_pb2.GetRequest.DataType.ALL:
-                updates = self.get_db_updates_for_path(path, prefix, self.demo_db)
+                updates = self.get_db_updates_for_path(path, prefix, self.demo_db,
+                                                       allow_aggregation=True)
             if data_type != gnmi_pb2.GetRequest.DataType.CONFIG:
                 updates = self.get_db_updates_for_path(path, prefix,
-                                                       self.demo_state_db)
+                                                       self.demo_state_db,
+                                                       allow_aggregation=True)
 
         log.debug("<== updates=%s", updates)
         return updates

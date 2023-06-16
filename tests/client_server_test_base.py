@@ -43,6 +43,16 @@ class GrpcBase(object):
         self.leaves = ["name", "type"]
         self.leaf_paths_str = [f"interface[name={{}}if_{{}}]/{leaf}" for leaf in self.leaves]
         self.list_paths_str = ["interface[name={}if_{}]", "interface", "ietf-interfaces:interfaces{}" ]
+        self.gnmi_tools_leaf_paths_str_val = [
+            ("/top/empty-leaf", [None]),
+            ("/top/down/str-leaf", "test3"),
+            ("/top/down/int-leaf", 44),
+            ("/top/pres", {}),
+            ("/top-pres/empty-leaf", [None]),
+            ("/top-pres/down/str-leaf", "test4"),
+            ("/top-pres/down/int-leaf", 10),
+            ("/top-pres/pres", {})
+        ]
 
     @staticmethod
     def mk_gnmi_if_path(path_str, if_state_str="", if_id=None):
@@ -122,7 +132,8 @@ class GrpcBase(object):
                                         poll_interval=0,
                                         poll_count=0, read_count=-1,
                                         sample_interval = None,
-                                        encoding=gnmi_pb2.Encoding.JSON_IETF):
+                                        encoding=gnmi_pb2.Encoding.JSON_IETF,
+                                        allow_aggregation=True):
         '''
         Invoke subscription and verify received updates
         :param prefix:  gNMI prefix for subscription
@@ -137,6 +148,7 @@ class GrpcBase(object):
               (for  gnmi_pb2.SubscriptionList.POLL or when sample_interval is used)
         :param sample_interval: interval for sample  in ms (for gnmi_pb2.SubscriptionList.STREAM only)
         :param encoding: encoding to use (implemented only JSON_IETF)
+        :param allow_aggregation: allow aggregation of results in updates
         '''
         if assert_fun is None:
             assert_fun = GrpcBase.assert_updates
@@ -199,7 +211,8 @@ class GrpcBase(object):
                                                    subscription_mode,
                                                    encoding,
                                                    stream_mode = stream_mode,
-                                                   sample_interval_ms=sample_interval)
+                                                   sample_interval_ms=sample_interval,
+                                                   allow_aggregation=allow_aggregation)
 
         responses = self.client.subscribe(subscription_list,
                                           read_fun=read_fun,
@@ -217,7 +230,8 @@ class GrpcBase(object):
                             poll_interval=0,
                             poll_count=0, read_count=-1,
                             sample_interval = None,
-                            encoding = gnmi_pb2.Encoding.JSON_IETF):
+                            encoding = gnmi_pb2.Encoding.JSON_IETF,
+                            allow_aggregation=True):
 
         kwargs = {"assert_fun": GrpcBase.assert_updates}
         if_state_str = prefix_state_str = ""
@@ -239,7 +253,8 @@ class GrpcBase(object):
             GrpcBase.mk_gnmi_if_path(self.list_paths_str[0], if_state_str,
                                      if_id),
             GrpcBase.mk_gnmi_if_path(self.list_paths_str[1]),
-            GrpcBase.mk_gnmi_if_path(self.list_paths_str[2].format(prefix_state_str))]
+            GrpcBase.mk_gnmi_if_path(self.list_paths_str[2].format(prefix_state_str)),
+        ]
         ifname = "{}if_{}".format(if_state_str, if_id)
 
         if is_subscribe:
@@ -249,6 +264,7 @@ class GrpcBase(object):
             kwargs["poll_count"] = poll_count
             kwargs["read_count"] = read_count
             kwargs["sample_interval"] = sample_interval
+            kwargs["allow_aggregation"] = allow_aggregation
         else:
             verify_response_updates = self.verify_get_response_updates
             kwargs["datatype"] = datatype
@@ -265,25 +281,36 @@ class GrpcBase(object):
                                 (leaf_paths[1], "iana-if-type:gigabitEthernet")]
         verify_response_updates(**kwargs)
         kwargs["paths"] = [list_paths[0]]
-        kwargs["path_value"] = [(list_paths[0],
-                                 dict(zip(self.leaves, [ifname, "iana-if-type:gigabitEthernet"])))]
+        if allow_aggregation:
+            kwargs["path_value"] = [(list_paths[0],
+                                     dict(zip(self.leaves, [ifname, "iana-if-type:gigabitEthernet"])))]
+        else:
+            kwargs["path_value"] = [(leaf_paths[0], ifname),
+                                    (leaf_paths[1], "iana-if-type:gigabitEthernet")]
         verify_response_updates(**kwargs)
-        pv = [(GrpcBase.mk_gnmi_if_path(self.list_paths_str[0], if_state_str, i),
-               dict(zip(self.leaves, [f"{if_state_str}if_{i}", "iana-if-type:gigabitEthernet"])))
-              for i in range(1, GnmiDemoServerAdapter.num_of_ifs+1)]
         kwargs["paths"] = [list_paths[1]]
+        if allow_aggregation:
+            pv = [(GrpcBase.mk_gnmi_if_path(self.list_paths_str[0], if_state_str, i),
+                   dict(zip(self.leaves, [f"{if_state_str}if_{i}", "iana-if-type:gigabitEthernet"])))
+                  for i in range(1, GnmiDemoServerAdapter.num_of_ifs+1)]
+        else:
+            pv = []
+            for i in range(1, GnmiDemoServerAdapter.num_of_ifs+1):
+                pv.append((GrpcBase.mk_gnmi_if_path(self.leaf_paths_str[0], if_state_str, i),
+                           f"{if_state_str}if_{i}"))
+                pv.append((GrpcBase.mk_gnmi_if_path(self.leaf_paths_str[1], if_state_str, i),
+                           "iana-if-type:gigabitEthernet"))
         kwargs["path_value"] = pv
         kwargs["assert_fun"] = GrpcBase.assert_in_updates
         verify_response_updates(**kwargs)
-
-        kwargs["paths"] = [list_paths[2]]
-
-        kwargs["path_value"] = [(list_paths[2],
-                                {"interface": list(map_db.values())})]
-        kwargs["assert_fun"] = None
-        kwargs["prefix"] = None
-        verify_response_updates(**kwargs)
-        pass
+        if allow_aggregation:
+            kwargs["paths"] = [list_paths[2]]
+            if allow_aggregation:
+                kwargs["path_value"] = [(list_paths[2],
+                                        {"interface": list(map_db.values())})]
+            kwargs["assert_fun"] = None
+            kwargs["prefix"] = None
+            verify_response_updates(**kwargs)
 
     @pytest.mark.parametrize("data_type", ["CONFIG", "STATE"])
     def test_get(self, request, data_type):
@@ -314,33 +341,39 @@ class GrpcBase(object):
             self._test_get_subscribe(datatype=datatype_str_to_int(data_type),
                                      encoding=encoding)
 
+    @pytest.mark.parametrize("allow_aggregation", [True, False])
     @pytest.mark.parametrize("data_type", ["CONFIG", "STATE"])
-    def test_subscribe_once(self, request, data_type):
+    def test_subscribe_once(self, request, data_type, allow_aggregation):
         log.info("testing subscribe_once")
         self._test_get_subscribe(is_subscribe=True,
-                                 datatype=datatype_str_to_int(data_type))
+                                 datatype=datatype_str_to_int(data_type),
+                                 allow_aggregation=allow_aggregation)
 
+    @pytest.mark.parametrize("allow_aggregation", [True, False])
     @pytest.mark.parametrize("data_type", ["CONFIG", "STATE"])
-    def test_subscribe_once_encoding(self, request, data_type):
+    def test_subscribe_once_encoding(self, request, data_type, allow_aggregation):
         log.info("testing subscribe_once_encoding")
 
         @self.encoding_test_decorator
         def test_it(encoding):
             self._test_get_subscribe(is_subscribe=True,
                                      datatype=datatype_str_to_int(data_type),
-                                     encoding=encoding)
+                                     encoding=encoding,
+                                     allow_aggregation=allow_aggregation)
 
     @pytest.mark.long
+    @pytest.mark.parametrize("allow_aggregation", [True, False])
     @pytest.mark.parametrize("data_type", ["CONFIG", "STATE"])
     @pytest.mark.parametrize("poll_args",
                              [(0.2, 2), (0.5, 2), (1, 2), (0.2, 10)])
-    def test_subscribe_poll(self, request, data_type, poll_args):
+    def test_subscribe_poll(self, request, data_type, poll_args, allow_aggregation):
         log.info("testing subscribe_poll")
         self._test_get_subscribe(is_subscribe=True,
                                  datatype=datatype_str_to_int(data_type),
                                  subscription_mode=gnmi_pb2.SubscriptionList.POLL,
                                  poll_interval=poll_args[0],
-                                 poll_count=poll_args[1])
+                                 poll_count=poll_args[1],
+                                 allow_aggregation=allow_aggregation)
 
     def _send_change_list_to_confd_thread(self, prefix_str, changes_list):
         log.info("==>")
