@@ -4,7 +4,7 @@ module gnmi-tools {
 
   description
     "This module contains a YANG data model for gnmi tools testing and
-                                                       development.";
+    development.";
 
   grouping combo {
     leaf empty-leaf { type empty; }
