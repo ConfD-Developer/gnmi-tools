@@ -71,7 +71,7 @@ def test_client_argparse():
     check_in_args(client_parse_args([]),
                   {'operation': 'capabilities', 'logging': 'warning',
                    'prefix': '',
-                   'paths': [], 'datatype': 'CONFIG', 'vals': [],
+                   'paths': [], 'datatype': 'ALL', 'vals': [],
                    'submode': 'ONCE', 'pollcount': 5, 'pollinterval': 0.5,
                    'readcount': 4})
 

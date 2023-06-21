@@ -332,7 +332,7 @@ options:
                         'path' for get, set and subscribe operation, can be
                         repeated (empty by default)
   -t {ALL,CONFIG,STATE,OPERATIONAL}, --data-type {ALL,CONFIG,STATE,OPERATIONAL}
-                        'data type' for get operation (default 'CONFIG')
+                        'data type' for get operation (default 'ALL')
   -v VALS, --val VALS   'value' for set operation, can be repeated (empty by
                         default)
   -s {ONCE,POLL,STREAM}, --sub-mode {ONCE,POLL,STREAM}
