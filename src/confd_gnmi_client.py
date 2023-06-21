@@ -267,8 +267,8 @@ def parse_args(args):
                         default=[])
     parser.add_argument("-t", "--data-type", action="store", dest="datatype",
                         choices=["ALL", "CONFIG", "STATE", "OPERATIONAL"],
-                        help="'data type' for get operation (default 'CONFIG')",
-                        default="CONFIG")
+                        help="'data type' for get operation (default 'ALL')",
+                        default="ALL")
     parser.add_argument("-v", "--val", action="append", dest="vals",
                         help="'value' for set operation, can be repeated (empty by default)",
                         default=[])
