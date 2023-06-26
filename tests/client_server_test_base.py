@@ -13,7 +13,7 @@ from confd_gnmi_client import ConfDgNMIClient
 from confd_gnmi_common import make_gnmi_path, datatype_str_to_int, \
     make_formatted_path
 from confd_gnmi_demo_adapter import GnmiDemoServerAdapter
-from confd_gnmi_server import AdapterType, ConfDgNMIServicer
+from confd_gnmi_servicer import AdapterType, ConfDgNMIServicer
 from utils.utils import log, nodeid_to_path
 
 
