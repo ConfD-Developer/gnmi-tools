@@ -538,13 +538,14 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
             elif isinstance(node, maagic.Leaf):
                 yield from self.append_update(tr, node._path, node._cs_node)
             else:
-                children = node._children.get_children(node._backend, node)
-                if len(children) == 0 and isinstance(node,
-                                                     maagic.PresenceContainer):
-                    yield from self.append_update(tr, node._path, node._cs_node)
-                else:
-                    for n in children:
-                        yield from self.make_updates_with_maagic_rec(tr, n)
+                if hasattr(node, "_children"): # skip nodes w/o children, e.g. Action
+                    children = node._children.get_children(node._backend, node)
+                    if len(children) == 0 and isinstance(node,
+                                                         maagic.PresenceContainer):
+                        yield from self.append_update(tr, node._path, node._cs_node)
+                    else:
+                        for n in children:
+                            yield from self.make_updates_with_maagic_rec(tr, n)
 
     def make_updates_with_maagic(self, tr, path_str):
         node = maagic.get_node(tr, path_str)
