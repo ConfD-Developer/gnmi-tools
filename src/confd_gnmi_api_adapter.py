@@ -433,6 +433,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
             log.debug("values=%s", values)
         except Exception as e:
             log.exception(e)
+            raise e
 
         log.info("<==")
         return values
@@ -558,7 +559,10 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
     def get_updates(self, trans, path_str, confd_path, save_flags, allow_aggregation=False):
         log.debug("==> path_str=%s", path_str)
         tagpath = '/' + '/'.join(tag for tag, _ in parse_instance_path(path_str))
-        csnode = _tm.cs_node_cd(None, tagpath)
+        if tagpath != '/':
+            csnode = _tm.cs_node_cd(None, tagpath)
+        else:
+            raise Exception("Query for root path / not supported by NSO/ConfD adapter.")
         updates = []
 
         def add_update_json(keypath, _value):
@@ -620,7 +624,6 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
 
         context = "netconf"
         groups = [self.username]
-        updates = []
         try:
             with maapi.single_read_trans(self.username, context, groups, db=db,
                                          src_ip=self.addr, src_port=self.port) as t:
@@ -628,6 +631,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                                            allow_aggregation=allow_aggregation)
         except Exception as e:
             log.exception(e)
+            raise e
 
         log.debug("<== up=%s", updates)
         return updates
