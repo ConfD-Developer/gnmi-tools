@@ -45,14 +45,17 @@ class ConfDgNMIClient:
         else:
             options = ()
             if server_crt_file:
+                log.debug("Reading crt file %s", server_crt_file)
                 with open(server_crt_file, "rb") as s:
                     ssl_cert = s.read()
             else:
+                log.debug("Fetching certificate from %s:%s", host, port)
                 # Example of overriding target name in options, if needed:
-                #  options = (("grpc.ssl_target_name_override", ""),)
+                # options = (("grpc.ssl_target_name_override", ""),)
                 ssl_cert = ssl.get_server_certificate((host, port)).encode(
                     "utf-8")
             assert ssl_cert is not None
+            log.debug("Creating channel")
             self.channel = secure_channel("{}:{}".format(host, port),
                                           ssl_channel_credentials(
                                               root_certificates=ssl_cert),
