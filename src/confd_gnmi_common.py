@@ -113,6 +113,26 @@ def make_gnmi_path(xpath_string: str, origin: str = None, target: str = None) ->
     return path
 
 
+def split_gnmi_path(xpath_string: str, prefix_len: int) -> Tuple[str, str]:
+    """ Split an input XPath string into two parts - prefix, and (rest of the) path.
+
+    Arguments:
+        xpath_string: str -- path to be split into two parts
+        prefix_len: str -- number of nested nodes to be in the first/prefix part of the result
+
+    Return:
+        (prefix, path) -- tuple of prefix & path strings """
+    elem_path = make_gnmi_path(xpath_string)
+
+    prefix_elems = elem_path.elem[:prefix_len]
+    prefix = make_xpath_path(gnmi_pb2.Path(elem=prefix_elems))
+
+    path_elems = elem_path.elem[prefix_len:]
+    path = make_xpath_path(gnmi_pb2.Path(elem=path_elems))
+
+    return (prefix, path)
+
+
 def _make_string_path(gnmi_path=None, gnmi_prefix=None, quote_val=False,
                       xpath=False) -> str:
     """
