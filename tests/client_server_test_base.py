@@ -40,7 +40,7 @@ class GrpcBase(object):
 
     @pytest.fixture(autouse=True)
     def _setup(self):
-        self.leaves = ["name", "type"]
+        self.leaves = ["name", "type", "enabled"]
         self.leaf_paths_str = [f"interface[name={{}}if_{{}}]/{leaf}" for leaf in self.leaves]
         self.list_paths_str = ["interface[name={}if_{}]", "interface", "ietf-interfaces:interfaces{}" ]
         self.gnmi_tools_leaf_paths_str_val = [
@@ -244,11 +244,10 @@ class GrpcBase(object):
         prefix = make_gnmi_path("/ietf-interfaces:interfaces{}".format(prefix_state_str))
         kwargs["prefix"] = prefix
         if_id = 8
-        leaf_paths = [
-            GrpcBase.mk_gnmi_if_path(self.leaf_paths_str[0], if_state_str,
-                                     if_id),
-            GrpcBase.mk_gnmi_if_path(self.leaf_paths_str[1], if_state_str,
-                                     if_id)]
+        leaf_paths = [GrpcBase.mk_gnmi_if_path(leaf_paths_str,
+                                               if_state_str,
+                                               if_id)
+                      for leaf_paths_str in self.leaf_paths_str]
         list_paths = [
             GrpcBase.mk_gnmi_if_path(self.list_paths_str[0], if_state_str,
                                      if_id),
@@ -277,21 +276,29 @@ class GrpcBase(object):
         kwargs["path_value"] = [(leaf_paths[1], "iana-if-type:gigabitEthernet")]
         verify_response_updates(**kwargs)
         kwargs["paths"] = leaf_paths
-        kwargs["path_value"] = [(leaf_paths[0], ifname),
-                                (leaf_paths[1], "iana-if-type:gigabitEthernet")]
+        pv = [(leaf_paths[0], ifname),
+              (leaf_paths[1], "iana-if-type:gigabitEthernet")]
+        if datatype != gnmi_pb2.GetRequest.DataType.STATE:
+            pv.append((leaf_paths[2], True))
+        kwargs["path_value"] = pv
         verify_response_updates(**kwargs)
         kwargs["paths"] = [list_paths[0]]
+        leaves = self.leaves
+        vals = ["iana-if-type:gigabitEthernet", True]
+        if datatype == gnmi_pb2.GetRequest.DataType.STATE:
+            leaves = leaves[:-1]
+            vals = vals[:-1]
         if allow_aggregation:
             kwargs["path_value"] = [(list_paths[0],
-                                     dict(zip(self.leaves, [ifname, "iana-if-type:gigabitEthernet"])))]
+                                     dict(zip(leaves, [ifname] + vals)))]
         else:
-            kwargs["path_value"] = [(leaf_paths[0], ifname),
-                                    (leaf_paths[1], "iana-if-type:gigabitEthernet")]
+            kwargs["path_value"] = pv
+
         verify_response_updates(**kwargs)
         kwargs["paths"] = [list_paths[1]]
         if allow_aggregation:
             pv = [(GrpcBase.mk_gnmi_if_path(self.list_paths_str[0], if_state_str, i),
-                   dict(zip(self.leaves, [f"{if_state_str}if_{i}", "iana-if-type:gigabitEthernet"])))
+                   dict(zip(leaves, [f"{if_state_str}if_{i}"] + vals)))
                   for i in range(1, GnmiDemoServerAdapter.num_of_ifs+1)]
         else:
             pv = []
@@ -300,6 +307,10 @@ class GrpcBase(object):
                            f"{if_state_str}if_{i}"))
                 pv.append((GrpcBase.mk_gnmi_if_path(self.leaf_paths_str[1], if_state_str, i),
                            "iana-if-type:gigabitEthernet"))
+                if datatype != gnmi_pb2.GetRequest.DataType.STATE:
+                    pv.append((GrpcBase.mk_gnmi_if_path(self.leaf_paths_str[2], if_state_str, i),
+                               True))
+
         kwargs["path_value"] = pv
         kwargs["assert_fun"] = GrpcBase.assert_in_updates
         verify_response_updates(**kwargs)

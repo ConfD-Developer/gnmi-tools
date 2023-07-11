@@ -515,8 +515,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                         json_ietf_val=json.dumps({}).encode())
                 else:
                     elem = tr.get_elem(path_str)
-                    if csnode.info().defval() != elem:  # skip default values
-                        gnmi_value = self.make_gnmi_json_value(elem, csnode)
+                    gnmi_value = self.make_gnmi_json_value(elem, csnode)
                 if gnmi_value is not None:
                     tr.pushd(path_str)
                     kp = tr.getcwd_kpath()
@@ -610,7 +609,8 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         pfx_path = self.fix_path_prefixes(path)
         if confd_path is not None:
             confd_path = self.fix_path_prefixes(confd_path)
-        save_flags = _tm.maapi.CONFIG_JSON | _tm.maapi.CONFIG_NO_PARENTS
+        save_flags = _tm.maapi.CONFIG_JSON | _tm.maapi.CONFIG_NO_PARENTS \
+                     | _tm.maapi.CONFIG_WITH_DEFAULTS
         db = _tm.OPERATIONAL
 
         if data_type == gnmi_pb2.GetRequest.DataType.ALL:

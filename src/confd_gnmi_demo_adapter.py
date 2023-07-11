@@ -98,6 +98,7 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
                 self.demo_db["{}/type".format(path)] = "gigabitEthernet"
                 self.demo_state_db[
                     "{}/type".format(state_path)] = "gigabitEthernet"
+                self.demo_db["{}/enabled".format(path)] = True
         log.debug("<== self.demo_db=%s self.demo_state_db=%s", self.demo_db,
                   self.demo_state_db)
 
