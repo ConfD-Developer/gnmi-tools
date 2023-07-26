@@ -624,11 +624,14 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
 
         context = "netconf"
         groups = [self.username]
+        updates = []
         try:
             with maapi.single_read_trans(self.username, context, groups, db=db,
                                          src_ip=self.addr, src_port=self.port) as t:
                 updates = self.get_updates(t, pfx_path, confd_path, save_flags,
                                            allow_aggregation=allow_aggregation)
+        except ValueError:
+            pass
         except Exception as e:
             log.exception(e)
             raise e
