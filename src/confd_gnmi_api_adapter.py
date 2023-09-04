@@ -413,19 +413,19 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         log.debug("<== handler=%s", handler)
         return handler
 
-    def set_credentials(self, username="admin", password="admin"):
+    def authenticate(self, username="admin", password="admin"):
         log.info("==> username=%s password=:-)", username)
         self.username = username
         self.password = password
-        auth = maapi.Maapi().authenticate(self.username, self.password, 1)
+        auth_status = maapi.Maapi().authenticate(self.username, self.password, 1)
         reason = "N/A"
-        if not isinstance(auth, int):
-            reason = auth[1]
-            auth = auth[0]
-        if auth == 1:
+        if not isinstance(auth_status, int):
+            reason = auth_status[1]
+            auth_status = auth_status[0]
+        if auth_status == 1:
             log.info(f"Authenticated {self.username}.")
         else:
-            e =  self.AuthenticationException(self.username, reason)
+            e =  self.AuthenticationException(self.username, str(reason))
             log.warning(e)
             raise e
         log.info("<== self.username=%s self.password=:-)", self.username)

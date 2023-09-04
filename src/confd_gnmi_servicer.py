@@ -42,7 +42,7 @@ class ConfDgNMIServicer(gNMIServicer):
         elif self.adapter_type == AdapterType.API:
             from confd_gnmi_api_adapter import GnmiConfDApiServerAdapter
             adapter = GnmiConfDApiServerAdapter.get_adapter()
-            adapter.set_credentials(username=username, password=password)
+            adapter.authenticate(username=username, password=password)
         log.debug("<== adapter=%s", adapter)
         return adapter
 
