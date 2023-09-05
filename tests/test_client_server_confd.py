@@ -6,10 +6,12 @@ from time import sleep
 
 import pytest
 
+import grpc
 import gnmi_pb2
 from client_server_test_base import GrpcBase
 from confd_gnmi_common import make_gnmi_path, make_xpath_path
 from confd_gnmi_server import AdapterType
+from confd_gnmi_client import ConfDgNMIClient
 from route_status import RouteData, RouteProvider, ChangeOp
 from utils.utils import log
 sys.path.append(os.getenv('CONFD_DIR')+"/src/confd/pyapi/confd")
@@ -168,3 +170,17 @@ class TestGrpcConfD(GrpcBase):
             RouteProvider.stop_confd_loop()
             confd_thread.join()
             RouteProvider.close_dp()
+
+    def _assert_auth(self, err_string, username="admin", password="admin"):
+        client = ConfDgNMIClient(username=username, password=password, insecure=True)
+        with pytest.raises(grpc.RpcError) as err:
+            capabilities = client.get_capabilities()
+        client.close()
+        assert err_string in str(err)
+
+    @pytest.mark.confd
+    def test_authentication(self, request):
+        log.info("testing authentication")
+        self._assert_auth("Bad password", password="bad")
+        self._assert_auth("No such local user", username="bad", password="bad")
+        self._assert_auth("No such local user", username="bad")
