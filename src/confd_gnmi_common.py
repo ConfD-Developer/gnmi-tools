@@ -90,13 +90,20 @@ def parse_instance_path(xpath_string) -> Iterable[Tuple[str, List[Tuple[str, str
     Instance paths are a limited form of XPath expressions - only
     predicates in the form of a key assignment are accepted.
     """
-
-    tag_rx = re.compile(r'/?(?P<tag>[^/\[\]]+)(?P<preds>(?:\[[^\]]*\])*)')
-    predicate_rx = re.compile(r'\[([^=]+)=([^\]]*)\]')
+    name = r'[a-zA-Z][-a-zA-Z0-9_]*'
+    prefixedname = f'(?:{name}:)?{name}'
+    keytag = f'(?P<keytag>{name})'
+    tag = f'(?P<tag>{prefixedname})'
+    quoted = r'"(?P<quoted>[^\\"]*(?:\\.[^\\"]*)*)"'
+    unquoted = r'(?P<unquoted>[^ "\]]*)'
+    predicate = f'\\[ *{keytag} *= *(?:{quoted}|{unquoted})\\]'
+    tag_rx = re.compile(f'/?{tag}(?P<preds>(?:{predicate})*)')
+    predicate_rx = re.compile(predicate)
 
     for match in tag_rx.finditer(xpath_string):
         mdict = match.groupdict()
-        keys = [pred.groups() for pred in predicate_rx.finditer(mdict['preds'])]
+        keys = [(g['keytag'], g['quoted'] if g['quoted'] is not None else g['unquoted'])
+                for g in [pred.groupdict() for pred in predicate_rx.finditer(mdict['preds'])]]
         yield mdict['tag'], keys
 
 
