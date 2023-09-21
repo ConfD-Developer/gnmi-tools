@@ -32,6 +32,13 @@ module gnmi-tools {
       leaf name {type string;}
       uses combo;
     }
+
+    list double-list {
+        key "name type";
+        leaf name {type string;}
+        leaf type {type string;}
+        leaf admin-state {type string;}
+    }
   }
 
 }

@@ -34,5 +34,25 @@
                 <int-leaf>23</int-leaf>
             </down>
         </top-list>
+        <double-list>
+            <name>n1</name>
+            <type>t1</type>
+            <admin-state>In-Service</admin-state>
+        </double-list>
+        <double-list>
+            <name>1010/0/AD-2-RX</name>
+            <type>opticalTransport</type>
+            <admin-state>In-Service</admin-state>
+        </double-list>
+        <double-list>
+            <name>1010/0/[AD 4-11]-1-RX</name>
+            <type>opticalTransport</type>
+            <admin-state>In-Service</admin-state>
+        </double-list>
+        <double-list>
+            <name>ab[cd</name>
+            <type>opticalTransport</type>
+            <admin-state>In-Service</admin-state>
+        </double-list>
     </gnmi-tools>
 </config>

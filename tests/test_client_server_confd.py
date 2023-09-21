@@ -74,6 +74,11 @@ class TestGrpcConfD(GrpcBase):
         kwargs = {"assert_fun": GrpcBase.assert_updates}
         kwargs["prefix"] = make_gnmi_path("/gnmi-tools:gnmi-tools")
 
+        leaf_paths_val = [
+            (GrpcBase.mk_gnmi_if_path(p[0]), p[1]) if len(p) == 2 else (
+                GrpcBase.mk_gnmi_if_path(p[0]), p[1], p[2]) for p in
+            self.gnmi_tools_leaf_paths_str_val]
+
         if is_subscribe:
             verify_response_updates = self.verify_sub_sub_response_updates
             kwargs["subscription_mode"] = subscription_mode
@@ -82,11 +87,12 @@ class TestGrpcConfD(GrpcBase):
             kwargs["read_count"] = read_count
             kwargs["sample_interval"] = sample_interval
             kwargs["allow_aggregation"] = allow_aggregation
+            # TODO temporarily disabled subscription tests for double lists
+            if not allow_aggregation:
+                leaf_paths_val = [ p for p in leaf_paths_val if not "double-list" in p[0].elem[0].name]
         else:
             verify_response_updates = self.verify_get_response_updates
             kwargs["datatype"] = datatype
-
-        leaf_paths_val = [(GrpcBase.mk_gnmi_if_path(p[0]), p[1]) for p in self.gnmi_tools_leaf_paths_str_val]
 
         kwargs["encoding"] = encoding
         kwargs["paths"] = [ p[0] for p in leaf_paths_val]
@@ -99,27 +105,30 @@ class TestGrpcConfD(GrpcBase):
         self._test_gnmi_tools_get_subscribe_gnmi_tools()
 
     @pytest.mark.confd
-    def test_gnmi_tools_subscribe_once(self, request):
+    @pytest.mark.parametrize("allow_aggregation", [True, False], ids=["aggr", "no-aggr"])
+    def test_gnmi_tools_subscribe_once(self, request, allow_aggregation):
         log.info("testing subscribe_once")
-        self._test_gnmi_tools_get_subscribe_gnmi_tools(is_subscribe=True, allow_aggregation=False)
+        self._test_gnmi_tools_get_subscribe_gnmi_tools(is_subscribe=True, allow_aggregation=allow_aggregation)
 
     @pytest.mark.long
     @pytest.mark.confd
+    @pytest.mark.parametrize("allow_aggregation", [True, False], ids=["aggr", "no-aggr"])
     @pytest.mark.parametrize("poll_args", [(0.2, 2), (0.5, 2), (1, 2)])
-    def test_gnmi_tools_subscribe_poll(self, request, poll_args):
+    def test_gnmi_tools_subscribe_poll(self, request, poll_args, allow_aggregation):
         log.info("testing subscribe_poll")
         self._test_gnmi_tools_get_subscribe_gnmi_tools(is_subscribe=True,
                                  subscription_mode=gnmi_pb2.SubscriptionList.POLL,
                                  poll_interval=poll_args[0],
                                  poll_count=poll_args[1],
-                                 allow_aggregation=False)
+                                 allow_aggregation=allow_aggregation)
 
     @pytest.mark.confd
-    def test_gnmi_tools_subscribe_stream_sample(self, request):
+    @pytest.mark.parametrize("allow_aggregation", [True, False], ids=["aggr", "no-aggr"])
+    def test_gnmi_tools_subscribe_stream_sample(self, request, allow_aggregation):
         log.info("testing subscribe_stream_sample")
         self._test_gnmi_tools_get_subscribe_gnmi_tools(is_subscribe=True,
                                  subscription_mode=gnmi_pb2.SubscriptionList.STREAM,
-                                 sample_interval=1000, read_count=2, allow_aggregation=False)
+                                 sample_interval=1000, read_count=2, allow_aggregation=allow_aggregation)
 
     @pytest.mark.long
     @pytest.mark.confd

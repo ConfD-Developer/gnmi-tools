@@ -51,7 +51,13 @@ class GrpcBase(object):
             ("/top-pres/empty-leaf", [None]),
             ("/top-pres/down/str-leaf", "test4"),
             ("/top-pres/down/int-leaf", 10),
-            ("/top-pres/pres", {})
+            ("/top-pres/pres", {}),
+            ("/double-list[type=t1][name=n1]/admin-state", "In-Service"),
+            ("/double-list[name=1010/0/AD-2-RX]/admin-state", "In-Service",
+             {"check_path": False}),
+            ("/double-list[name=1010/0/AD-2-RX][type=opticalTransport]/admin-state", "In-Service"),
+            ("/double-list[name=\"1010/0/[AD 4-11]-1-RX\"][type=opticalTransport]/admin-state", "In-Service"),
+            ("/double-list[name=\"ab[cd\"][type=opticalTransport]/admin-state", "In-Service")
         ]
 
     @staticmethod
@@ -84,7 +90,13 @@ class GrpcBase(object):
 
     @staticmethod
     def assert_update(update, path_val):
-        assert (update.path == path_val[0])
+        check_path = True
+        #do we have options attribute?
+        if len(path_val) >= 3:
+            if "check_path" in path_val[2]:
+                check_path = path_val[2]["check_path"]
+        if check_path:
+            assert (update.path == path_val[0])
         json_value = json.loads(update.val.json_ietf_val)
         assert json_value == path_val[1]
 
@@ -352,7 +364,7 @@ class GrpcBase(object):
             self._test_get_subscribe(datatype=datatype_str_to_int(data_type),
                                      encoding=encoding)
 
-    @pytest.mark.parametrize("allow_aggregation", [True, False])
+    @pytest.mark.parametrize("allow_aggregation", [True, False], ids=["aggr", "no-aggr"])
     @pytest.mark.parametrize("data_type", ["CONFIG", "STATE"])
     def test_subscribe_once(self, request, data_type, allow_aggregation):
         log.info("testing subscribe_once")
@@ -360,7 +372,7 @@ class GrpcBase(object):
                                  datatype=datatype_str_to_int(data_type),
                                  allow_aggregation=allow_aggregation)
 
-    @pytest.mark.parametrize("allow_aggregation", [True, False])
+    @pytest.mark.parametrize("allow_aggregation", [True, False], ids=["aggr", "no-aggr"])
     @pytest.mark.parametrize("data_type", ["CONFIG", "STATE"])
     def test_subscribe_once_encoding(self, request, data_type, allow_aggregation):
         log.info("testing subscribe_once_encoding")
@@ -373,7 +385,7 @@ class GrpcBase(object):
                                      allow_aggregation=allow_aggregation)
 
     @pytest.mark.long
-    @pytest.mark.parametrize("allow_aggregation", [True, False])
+    @pytest.mark.parametrize("allow_aggregation", [True, False], ids=["aggr", "no-aggr"])
     @pytest.mark.parametrize("data_type", ["CONFIG", "STATE"])
     @pytest.mark.parametrize("poll_args",
                              [(0.2, 2), (0.5, 2), (1, 2), (0.2, 10)])

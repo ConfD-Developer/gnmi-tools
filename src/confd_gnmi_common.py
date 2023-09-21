@@ -107,7 +107,7 @@ def parse_instance_path(xpath_string) -> Iterable[Tuple[str, List[Tuple[str, str
         yield mdict['tag'], keys
 
 
-# Crate gNMI Path object from string representation of path
+# Create gNMI Path object from string representation of path
 # see: https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#222-paths
 # TODO tests
 def make_gnmi_path(xpath_string: str, origin: str = None, target: str = None) -> gnmi_pb2.Path:
@@ -157,10 +157,16 @@ def _make_string_path(gnmi_path=None, gnmi_prefix=None, quote_val=False,
         path = ""
         for e in gnmi_path.elem:
             path += "/" + e.name
-            for k, v in e.key.items():
-                val = v if not quote_val else "\"{}\"".format(v)
-                path += "[{}={}]".format(k, val) if xpath else "{{{}}}".format(
-                    val)
+            len_items = len(e.key.items())
+            if len_items:
+                if not xpath: path += '{'
+                for index, (k, v) in enumerate(e.key.items()):
+                    val = v if not quote_val else "\"{}\"".format(v)
+                    path += "[{}={}]".format(k, val) if xpath else "{}".format(
+                        val)
+                    if not xpath and index < len_items - 1: path += " "
+                if not xpath: path += '}'
+
         if path == "":
             path = "/"
         return path
