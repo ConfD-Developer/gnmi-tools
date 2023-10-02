@@ -36,6 +36,13 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
     monitor_external_changes: bool = ApiAdapterDefaults.MONITOR_EXTERNAL_CHANGES
     external_port: int = ApiAdapterDefaults.EXTERNAL_PORT
 
+    class AuthenticationException(Exception):
+        def __init__(self, user, reason="N/A"):
+            self.user = user
+            self.reason = reason
+        def __str__(self):
+            return f"Authentication failed for user '{self.user}': {self.reason}."
+
     def __init__(self):
         self.addr: str = GnmiConfDApiServerAdapter.addr
         self.port: int = GnmiConfDApiServerAdapter.port
@@ -404,10 +411,21 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         log.debug("<== handler=%s", handler)
         return handler
 
-    def set_credentials(self, username="admin", password="admin"):
+    def authenticate(self, username="admin", password="admin"):
         log.info("==> username=%s password=:-)", username)
         self.username = username
         self.password = password
+        auth_status = maapi.Maapi().authenticate(self.username, self.password, 1)
+        reason = "N/A"
+        if not isinstance(auth_status, int):
+            reason = auth_status[1]
+            auth_status = auth_status[0]
+        if auth_status == 1:
+            log.info(f"Authenticated {self.username}.")
+        else:
+            e =  self.AuthenticationException(self.username, str(reason))
+            log.warning(e)
+            raise e
         log.info("<== self.username=%s self.password=:-)", self.username)
 
     # https://tools.ietf.org/html/rfc6022#page-8
@@ -536,7 +554,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
             elif isinstance(node, maagic.Leaf):
                 yield from self.append_update(tr, node._path, node._cs_node)
             else:
-                if hasattr(node, "_children"): # skip nodes w/o children, e.g. Action
+                if hasattr(node, "_children"):  # skip nodes w/o children, e.g. Action
                     children = node._children.get_children(node._backend, node)
                     if len(children) == 0 and isinstance(node,
                                                          maagic.PresenceContainer):
