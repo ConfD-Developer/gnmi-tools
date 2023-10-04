@@ -143,33 +143,31 @@ def split_gnmi_path(xpath_string: str, prefix_len: int) -> Tuple[str, str]:
 def _make_string_path(gnmi_path=None, gnmi_prefix=None, quote_val=False,
                       xpath=False) -> str:
     """
-    Create string path from gnmi_path and gnmi_prefix
-    :param gnmi_path:
-    :param gnmi_prefix:
-    :param quote_val:
-    :param xpath:
-    :return:
+    Create a string path from gnmi_path and gnmi_prefix
+    :param gnmi_path: The gnmi_path object
+    :param gnmi_prefix: The gnmi_prefix object
+    :param quote_val: Whether to quote the values in the path
+    :param xpath: Whether to use xpath formatting for the keys
+    :return: The string representation of the path
     """
     log.debug("==> gnmi_path=%s gnmi_prefix=%s quote_val=%s xpath=%s",
               gnmi_path, gnmi_prefix, quote_val, xpath)
 
     def make_path(gnmi_path):
-        path = ""
-        for e in gnmi_path.elem:
-            path += "/" + e.name
-            len_items = len(e.key.items())
-            if len_items:
-                if not xpath: path += '{'
-                for index, (k, v) in enumerate(e.key.items()):
-                    val = v if not quote_val else "\"{}\"".format(v)
-                    path += "[{}={}]".format(k, val) if xpath else "{}".format(
-                        val)
-                    if not xpath and index < len_items - 1: path += " "
-                if not xpath: path += '}'
+        path_elements = [e.name + elem_keys(e) for e in gnmi_path.elem]
+        return "/" + "/".join(path_elements)
 
-        if path == "":
-            path = "/"
-        return path
+    valstr = '"{}"' if quote_val else '{}'
+
+    def elem_keys(elem):
+        if not elem.key:
+            return ""
+        if xpath:
+            return ''.join(
+                f'[{k}={valstr.format(v)}]' for k, v in elem.key.items())
+        else:
+            return '{' + ' '.join(
+                valstr.format(v) for v in elem.key.values()) + '}'
 
     path_str = ""
     if gnmi_prefix is not None and len(gnmi_prefix.elem) > 0:

@@ -43,7 +43,7 @@ class GrpcBase(object):
         self.leaves = ["name", "type", "enabled"]
         self.leaf_paths_str = [f"interface[name={{}}if_{{}}]/{leaf}" for leaf in self.leaves]
         self.list_paths_str = ["interface[name={}if_{}]", "interface", "ietf-interfaces:interfaces{}" ]
-        self.gnmi_tools_leaf_paths_str_val = [
+        self.leaf_paths_str_for_gnmi_tools = [
             ("/top/empty-leaf", [None]),
             ("/top/down/str-leaf", "test3"),
             ("/top/down/int-leaf", 44),
@@ -52,12 +52,12 @@ class GrpcBase(object):
             ("/top-pres/down/str-leaf", "test4"),
             ("/top-pres/down/int-leaf", 10),
             ("/top-pres/pres", {}),
-            ("/double-list[type=t1][name=n1]/admin-state", "In-Service"),
-            ("/double-list[name=1010/0/AD-2-RX]/admin-state", "In-Service",
+            ("/double-key-list[type=t1][name=n1]/admin-state", "In-Service"),
+            ("/double-key-list[name=1010/0/AD-2-RX]/admin-state", "In-Service",
              {"check_path": False}),
-            ("/double-list[name=1010/0/AD-2-RX][type=opticalTransport]/admin-state", "In-Service"),
-            ("/double-list[name=\"1010/0/[AD 4-11]-1-RX\"][type=opticalTransport]/admin-state", "In-Service"),
-            ("/double-list[name=\"ab[cd\"][type=opticalTransport]/admin-state", "In-Service")
+            ("/double-key-list[name=1010/0/AD-2-RX][type=opticalTransport]/admin-state", "In-Service"),
+            ("/double-key-list[name=\"1010/0/[AD 4-11]-1-RX\"][type=opticalTransport]/admin-state", "In-Service"),
+            ("/double-key-list[name=\"ab[cd\"][type=opticalTransport]/admin-state", "In-Service")
         ]
 
     @staticmethod
@@ -90,14 +90,31 @@ class GrpcBase(object):
 
     @staticmethod
     def assert_update(update, path_val):
+        """
+        Asserts that the update matches the expected path and value.
+
+        Args:
+            update (Update): The update object to be checked.
+            path_val (tuple): A tuple containing the expected path and value and optional options map
+
+        Raises:
+            AssertionError: If the update does not match the expected path and value.
+        """
+        # Check if the path should be validated
         check_path = True
-        #do we have options attribute?
-        if len(path_val) >= 3:
-            if "check_path" in path_val[2]:
-                check_path = path_val[2]["check_path"]
+
+        # Check if the options attribute map has the "check_path" key
+        if len(path_val) >= 3 and "check_path" in path_val[2]:
+            check_path = path_val[2]["check_path"]
+
+        # Validate the path if required
         if check_path:
-            assert (update.path == path_val[0])
+            assert update.path == path_val[0]
+
+        # Parse the json_ietf_val attribute of the update object
         json_value = json.loads(update.val.json_ietf_val)
+
+        # Assert that the parsed json value matches the expected value
         assert json_value == path_val[1]
 
     @staticmethod

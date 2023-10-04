@@ -33,7 +33,7 @@ module gnmi-tools {
       uses combo;
     }
 
-    list double-list {
+    list double-key-list {
         key "name type";
         leaf name {type string;}
         leaf type {type string;}

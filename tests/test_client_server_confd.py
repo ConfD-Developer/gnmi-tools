@@ -79,7 +79,7 @@ class TestGrpcConfD(GrpcBase):
         leaf_paths_val = [
             (GrpcBase.mk_gnmi_if_path(p[0]), p[1]) if len(p) == 2 else (
                 GrpcBase.mk_gnmi_if_path(p[0]), p[1], p[2]) for p in
-            self.gnmi_tools_leaf_paths_str_val]
+            self.leaf_paths_str_for_gnmi_tools]
 
         if is_subscribe:
             verify_response_updates = self.verify_sub_sub_response_updates
@@ -89,9 +89,9 @@ class TestGrpcConfD(GrpcBase):
             kwargs["read_count"] = read_count
             kwargs["sample_interval"] = sample_interval
             kwargs["allow_aggregation"] = allow_aggregation
-            # TODO temporarily disabled subscription tests for double lists
+            # disabled subscription tests for double key lists as not handled by verify_sub_sub_response_updates
             if not allow_aggregation:
-                leaf_paths_val = [ p for p in leaf_paths_val if not "double-list" in p[0].elem[0].name]
+               leaf_paths_val = [ p for p in leaf_paths_val if not "double-key-list" in p[0].elem[0].name]
         else:
             verify_response_updates = self.verify_get_response_updates
             kwargs["datatype"] = datatype
