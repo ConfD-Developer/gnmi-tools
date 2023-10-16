@@ -289,9 +289,11 @@ def get_timestamp_ns() -> int:
 
 def get_time_string(time_ns) -> str:
     """
-    Get the  timestamp in nanoseconds.
+    Get the formatted timestamp string.
+    Args:
+        time_ns (int): The timestamp in nanoseconds.
     Returns:
-        str: The current timestamp in nanoseconds.
+        str: The formatted timestamp string.
     """
     utc = time.gmtime(time_ns // 1000000000)
     return f"{utc.tm_year}-{utc.tm_mon}-{utc.tm_mday} {utc.tm_hour}:{utc.tm_min}.{utc.tm_sec} +{time_ns % 1000000000}ns UTC"
