@@ -8,6 +8,7 @@ from queue import Queue, Empty
 from typing import List
 
 import gnmi_pb2
+from confd_gnmi_common import get_timestamp_ns
 
 log = logging.getLogger('confd_gnmi_adapter')
 
@@ -210,7 +211,6 @@ class GnmiServerAdapter(ABC):
             :param: start_monitoring: if True, the paths will be monitored
             for future changes
             TODO `delete` is processed and `delete` array is empty
-            TODO timestamp is 0
             :return: SubscribeResponse with sample
             """
             log.debug("==> subscriptions=%s", subscriptions)
@@ -220,7 +220,7 @@ class GnmiServerAdapter(ABC):
                 update.extend(self.get_sample(path=s.path,
                                               prefix=self.subscription_list.prefix,
                                               allow_aggregation=self.subscription_list.allow_aggregation))
-            notif = gnmi_pb2.Notification(timestamp=0,
+            notif = gnmi_pb2.Notification(timestamp=get_timestamp_ns(),
                                           prefix=self.subscription_list.prefix,
                                           update=update,
                                           delete=[],
@@ -245,7 +245,6 @@ class GnmiServerAdapter(ABC):
             Get subscription responses for changes (subscribed values).
             `update` arrays contain changes
             TODO `delete` is processed and `delete` array is empty
-            TODO timestamp is 0
             :return: SubscribeResponse with changes
             """
             log.debug("==>")
@@ -257,7 +256,7 @@ class GnmiServerAdapter(ABC):
 
         def get_subscription_notifications(self):
             update = self.get_monitored_changes()
-            notif = gnmi_pb2.Notification(timestamp=0,
+            notif = gnmi_pb2.Notification(timestamp=get_timestamp_ns(),
                                           prefix=self.subscription_list.prefix,
                                           update=update,
                                           delete=[],

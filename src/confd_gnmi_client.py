@@ -18,7 +18,7 @@ import gnmi_pb2
 from confd_gnmi_common import HOST, PORT, make_xpath_path, VERSION, \
     common_optparse_options, common_optparse_process, make_gnmi_path, \
     datatype_str_to_int, subscription_mode_str_to_int, \
-    encoding_int_to_str, encoding_str_to_int
+    encoding_int_to_str, encoding_str_to_int, get_time_string
 
 from gnmi_pb2_grpc import gNMIStub
 
@@ -145,8 +145,8 @@ class ConfDgNMIClient:
     @staticmethod
     def print_notification(n):
         pfx_str = make_xpath_path(gnmi_prefix=n.prefix)
-        print("timestamp {} prefix {} atomic {}".format(n.timestamp, pfx_str,
-                                                        n.atomic))
+        print("timestamp {} prefix {} atomic {}".format(
+            get_time_string(n.timestamp), pfx_str, n.atomic))
         print("Updates:")
         for u in n.update:
             if u.val.json_val:
@@ -403,9 +403,9 @@ if __name__ == '__main__':
             else:
                 response = client.delete(prefix, paths)
             print("Set - UpdateResult:")
-            print("timestamp {} prefix {}".format(response.timestamp,
-                                                  make_xpath_path(
-                                                      response.prefix)))
+            print("timestamp {} prefix {}".format(
+                get_time_string(response.timestamp),
+                make_xpath_path(response.prefix)))
             for r in response.response:
                 print("timestamp {} op {} path {}".format(r.timestamp,
                                                           r.op,

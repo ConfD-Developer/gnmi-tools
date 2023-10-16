@@ -10,7 +10,7 @@ from random import randint
 
 import gnmi_pb2
 from confd_gnmi_adapter import GnmiServerAdapter
-from confd_gnmi_common import make_xpath_path, make_gnmi_path
+from confd_gnmi_common import make_xpath_path, make_gnmi_path, get_timestamp_ns
 
 log = logging.getLogger('confd_gnmi_demo_adapter')
 
@@ -434,7 +434,7 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
         update = []
         for path in paths:
             update.extend(self.get_updates(path, prefix, data_type))
-        notif = gnmi_pb2.Notification(timestamp=1, prefix=prefix,
+        notif = gnmi_pb2.Notification(timestamp=get_timestamp_ns(), prefix=prefix,
                                       update=update,
                                       delete=[],
                                       atomic=True)

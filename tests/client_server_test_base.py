@@ -1,7 +1,6 @@
 import json
 import subprocess
 import threading
-import time
 import xml.etree.cElementTree as ET
 from time import sleep
 
@@ -11,7 +10,7 @@ import pytest
 import gnmi_pb2
 from confd_gnmi_client import ConfDgNMIClient
 from confd_gnmi_common import make_gnmi_path, datatype_str_to_int, \
-    make_formatted_path
+    make_formatted_path, get_timestamp_ns
 from confd_gnmi_demo_adapter import GnmiDemoServerAdapter
 from confd_gnmi_servicer import AdapterType, ConfDgNMIServicer
 from utils.utils import log, nodeid_to_path
@@ -141,18 +140,23 @@ class GrpcBase(object):
             GrpcBase.assert_one_in_update(updates, pv)
         log.debug("<==")
 
+
     def verify_get_response_updates(self, prefix, paths, path_value,
                                     datatype, encoding, assert_fun=None):
         if assert_fun is None:
             assert_fun = GrpcBase.assert_updates
         log.debug("prefix=%s paths=%s pv_list=%s datatype=%s encoding=%s",
                   prefix, paths, path_value, datatype, encoding)
+        time_before = get_timestamp_ns()
         get_response = self.client.get(prefix, paths, datatype, encoding)
-        log.debug("notification=%s", get_response.notification)
+        time_after = get_timestamp_ns()
+        log.debug("notification=%s time_before=%i time_after=%i",
+                  get_response.notification, time_before, time_after)
         for n in get_response.notification:
             log.debug("n=%s", n)
             if prefix:
                 assert (n.prefix == prefix)
+            assert(time_before <= n.timestamp and n.timestamp <= time_after)
             assert_fun(n.update, path_value)
 
     def verify_sub_sub_response_updates(self, prefix, paths, path_value,
@@ -201,14 +205,17 @@ class GrpcBase(object):
             prev_response_time_ms = 0
             SAMPLE_THRESHOLD = 300
             for response in responses:
-                log.debug("response=%s response_count=%i", response,
-                          response_count)
-                response_time_ms = time.time_ns()/1000000
+                time_after = get_timestamp_ns()
+                log.debug("response=%s response_count=%i time_after=%i", response,
+                          response_count, time_after)
+                response_time_ms = time_after/1000000
                 if response.sync_response:
                     log.debug("sync_response")
                     assert response_count == 1  # sync expected only after first response
                 else:
                     response_count += 1
+                    assert (time_before <= response.update.timestamp and
+                            response.update.timestamp <= time_after)
                     if prefix:
                         assert (response.update.prefix == prefix)
                     pv_to_check = path_value
@@ -243,6 +250,7 @@ class GrpcBase(object):
                                                    sample_interval_ms=sample_interval,
                                                    allow_aggregation=allow_aggregation)
 
+        time_before = get_timestamp_ns()
         responses = self.client.subscribe(subscription_list,
                                           read_fun=read_fun,
                                           poll_interval=poll_interval,
@@ -573,7 +581,10 @@ class GrpcBase(object):
         prefix = make_gnmi_path("/ietf-interfaces:interfaces")
         paths = [GrpcBase.mk_gnmi_if_path(self.leaf_paths_str[1], "", if_id)]
         vals = [gnmi_pb2.TypedValue(json_ietf_val=b"\"iana-if-type:fastEther\"")]
+        time_before = get_timestamp_ns()
         response = self.client.set(prefix, list(zip(paths, vals)))
+        time_after = get_timestamp_ns()
+        assert (time_before <= response.timestamp and response.timestamp <= time_after)
         assert (response.prefix == prefix)
         GrpcBase.assert_set_response(response.response[0],
                                      (paths[0], gnmi_pb2.UpdateResult.UPDATE))
