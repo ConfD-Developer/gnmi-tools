@@ -6,7 +6,7 @@ from enum import Enum
 import grpc
 
 import gnmi_pb2
-from confd_gnmi_common import PORT
+from confd_gnmi_common import PORT, get_timestamp_ns
 from gnmi_pb2_grpc import gNMIServicer, add_gNMIServicer_to_server
 
 log = logging.getLogger('confd_gnmi_servicer')
@@ -170,11 +170,12 @@ class ConfDgNMIServicer(gNMIServicer):
         ops = adapter.set(request.prefix, request.update)
         ops += adapter.delete(request.prefix, request.delete)
 
-        results = [gnmi_pb2.UpdateResult(timestamp=0, path=path, op=op)
+        # Note: UpdateResult timestamp is deprecated, setting to -1
+        results = [gnmi_pb2.UpdateResult(timestamp=-1, path=path, op=op)
                    for path, op in ops]
 
         response = gnmi_pb2.SetResponse(prefix=request.prefix,
-                                        response=results, timestamp=0)
+                                        response=results, timestamp=get_timestamp_ns())
 
         log.info("<== response=%s", response)
         return response

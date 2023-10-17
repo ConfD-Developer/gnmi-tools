@@ -1,4 +1,4 @@
-from enum import Enum
+import time
 import logging
 from typing import Tuple, Dict, List, Iterable
 import re
@@ -277,3 +277,23 @@ def stream_mode_str_to_int(mode: str, no_error=False) -> int:
     return _convert_enum_format(gnmi_pb2.SubscriptionMode.Value, mode,
                                 f'Unknown streaming mode! ({mode})',
                                 no_error, f'UNKNOWN({mode})')
+
+
+def get_timestamp_ns() -> int:
+    """
+    Get the current timestamp in nanoseconds.
+    Returns:
+        int: The current timestamp in nanoseconds.
+    """
+    return int(time.time_ns())
+
+def get_time_string(time_ns) -> str:
+    """
+    Get the formatted timestamp string.
+    Args:
+        time_ns (int): The timestamp in nanoseconds.
+    Returns:
+        str: The formatted timestamp string.
+    """
+    utc = time.gmtime(time_ns // 1000000000)
+    return f"{utc.tm_year}-{utc.tm_mon}-{utc.tm_mday} {utc.tm_hour}:{utc.tm_min}.{utc.tm_sec} +{time_ns % 1000000000}ns UTC"

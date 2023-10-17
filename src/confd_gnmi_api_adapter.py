@@ -12,7 +12,8 @@ import gnmi_pb2
 from confd_gnmi_adapter import GnmiServerAdapter
 from confd_gnmi_api_adapter_defaults import ApiAdapterDefaults
 from confd_gnmi_common import make_xpath_path, make_formatted_path, \
-    add_path_prefix, remove_path_prefix, make_gnmi_path, parse_instance_path
+    add_path_prefix, remove_path_prefix, make_gnmi_path, parse_instance_path, \
+    get_timestamp_ns
 
 import tm
 _tm = __import__(tm.TM)
@@ -111,7 +112,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
             self.subpoint_paths = {}
 
         def get_subscription_notifications(self):
-            return [gnmi_pb2.Notification(timestamp=0,
+            return [gnmi_pb2.Notification(timestamp=get_timestamp_ns(),
                                           prefix=prefix,
                                           update=updates,
                                           delete=[],
@@ -665,7 +666,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         updates = [gnmi_pb2.Update(path=remove_path_prefix(update.path, prefix), val=update.val)
                    for u_list in updates2
                    for update in u_list]
-        notif = gnmi_pb2.Notification(timestamp=1, prefix=prefix,
+        notif = gnmi_pb2.Notification(timestamp=get_timestamp_ns(), prefix=prefix,
                                       update=updates,
                                       delete=[],
                                       atomic=True)
