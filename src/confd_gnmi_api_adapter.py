@@ -51,7 +51,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         self.password: str = ""
         self.mp_inst = None
         # make sure schemas are loaded
-        with maapi.Maapi():
+        with maapi.Maapi(ip=self.addr, port=self.port):
             pass
         nslist = _tm.get_nslist()
         self.module_to_pfx = {nsentry[-1]: nsentry[1] for nsentry in nslist}
@@ -416,7 +416,8 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         log.info("==> username=%s password=:-)", username)
         self.username = username
         self.password = password
-        auth_status = maapi.Maapi().authenticate(self.username, self.password, 1)
+        auth_status = maapi.Maapi(ip=self.addr, port=self.port).authenticate(
+            self.username, self.password, 1)
         reason = "N/A"
         if not isinstance(auth_status, int):
             reason = auth_status[1]
@@ -437,14 +438,15 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         groups = [self.username]
         try:
             with maapi.single_read_trans(self.username, context, groups,
-                                         src_ip=self.addr, src_port=self.port) as t:
+                                         ip=self.addr, port=self.port) as t:
                 root = maagic.get_root(t)
                 values = []
                 count = 0
                 for module in root.modules_state.module:
                     log.debug("val=%s", module.name)
-                    name = f'{module.namespace}:{module.name}'
-                    values.append((module.namespace, name, "", module.revision))
+                    name = f'{module.name}'
+                    revision = str(module.revision) if module.revision else "N/A"
+                    values.append((module.namespace, name, "", revision))
                     count += 1
                     log.debug("Value element count=%d" % count)
             log.debug("values=%s", values)
@@ -644,7 +646,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         updates = []
         try:
             with maapi.single_read_trans(self.username, context, groups, db=db,
-                                         src_ip=self.addr, src_port=self.port) as t:
+                                         ip=self.addr, port=self.port) as t:
                 updates = self.get_updates(t, pfx_path, save_flags,
                                            allow_aggregation=allow_aggregation)
         except ValueError:
@@ -702,7 +704,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         context = "netconf"
         groups = [self.username]
         with maapi.single_write_trans(self.username, context, groups,
-                                      src_ip=self.addr, src_port=self.port) as t:
+                                      ip=self.addr, port=self.port) as t:
             ops = [(up.path, self.set_update(t, prefix, up.path, up.val))
                    for up in updates]
             t.apply()
@@ -714,8 +716,8 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         log.info("==> prefix=%s, paths=%s", prefix, paths)
         context = "netconf"
         groups = [self.username]
-        with maapi.single_write_trans(self.username, context, groups, src_ip=self.addr,
-                                      src_port=self.port) as t:
+        with maapi.single_write_trans(self.username, context, groups, ip=self.addr,
+                                      port=self.port) as t:
             ops = []
             for path in paths:
                 t.delete(self.fix_path_prefixes(make_formatted_path(path, prefix)))
