@@ -599,10 +599,13 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                 log.debug("save_result=%s", save_result)
                 assert save_result == 0
                 gnmi_path = self.make_gnmi_keypath(keypath, csnode)
-                # the format of saved_data is {"node": {data}}
-                # we need only the data part
-                assert len(saved_data) == 1
-                [data] = saved_data.values()
+                # the format of saved_data is {"node": {data}}, can be
+                # {} if the container is empty; we need only the data
+                # part
+                if not saved_data:
+                    data = {}
+                else:
+                    [data] = saved_data.values()
                 gnmi_value = gnmi_pb2.TypedValue(json_ietf_val=json.dumps(data).encode())
                 updates.append(gnmi_pb2.Update(path=gnmi_path, val=gnmi_value))
 
