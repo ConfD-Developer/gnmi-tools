@@ -34,11 +34,14 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
     config = {}
 
     capability_list = [
-        dict(name="http://tail-f.com/ns/aaa/1.1:tailf-aaa",
+        dict(ns="http://tail-f.com/ns/aaa/1.1",
+             name="tailf-aaa",
              organization="", version="2018-09-12"),
-        dict(name="urn:ietf:params:xml:ns:yang:ietf-inet-types:ietf-inet-types",
+        dict(ns="urn:ietf:params:xml:ns:yang",
+             name="ietf-inet-types",
              organization="", version="2013-07-15"),
-        dict(name="urn:ietf:params:xml:ns:yang:ietf-interfaces:ietf-interfaces",
+        dict(ns="urn:ietf:params:xml:ns:yang",
+             name="ietf-interfaces",
              organization="", version="2014-05-08"),
     ]
 
