@@ -115,9 +115,9 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
             return [gnmi_pb2.Notification(timestamp=get_timestamp_ns(),
                                           prefix=prefix,
                                           update=updates,
-                                          delete=[],
+                                          delete=deletes,
                                           atomic=False)
-                    for prefix, updates in self._get_subscription_notifications()]
+                    for prefix, updates, deletes in self._get_subscription_notifications()]
 
         def _get_subscription_notifications(self):
             with self.change_db_lock:
@@ -131,11 +131,16 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                         prefix = gnmi_pb2.Path(elem=elems,
                                                target=sub_prefix.target,
                                                origin=sub_prefix.origin)
+                        changegroup = list(changegroup)
                         updates = [gnmi_pb2.Update(path=remove_path_prefix(path, prefix),
                                                    val=value)
-                                   for _op, path, value in changegroup]
-                        log.debug("update=%s", updates)
-                        yield prefix, updates
+                                   for op, path, value in changegroup
+                                   if op is self.ChangeOp.MODIFIED]
+                        deletes = [remove_path_prefix(path, prefix)
+                                   for op, path, _ in changegroup
+                                   if op is self.ChangeOp.DELETED]
+                        log.debug("update=%s deletes=%s", updates, deletes)
+                        yield prefix, updates, deletes
                 self.change_db = []
 
         def get_monitored_changes(self):
@@ -177,6 +182,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
 
         class ChangeOp(Enum):
             MODIFIED = "mod"
+            DELETED = "del"
 
         def _append_changes(self, sub_point, changes):
             """
@@ -198,7 +204,9 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                 csnode = _tm.cs_node_cd(None, str(kp))
                 if op == _tm.MOP_CREATED:
                     log.debug("_tm.MOP_CREATED")
-                    # TODO CREATE not handled for now
+                    # TODO in case of empty leaves or possibly presence
+                    # containers, something needs to be done; the rest is
+                    # handled after ITER_RECURSE
                 if op == _tm.MOP_VALUE_SET:
                     log.debug("_tm.MOP_VALUE_SET")
                     changes.append((self.ChangeOp.MODIFIED,
@@ -207,10 +215,12 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                     # TODO MOP_VALUE_SET implement
                 elif op == _tm.MOP_DELETED:
                     log.debug("_tm.MOP_DELETED")
-                    # TODO DELETE not handled for now
+                    changes.append((self.ChangeOp.DELETED,
+                                    self.adapter.make_gnmi_keypath(kp, csnode),
+                                    None))
                 elif op == _tm.MOP_MODIFIED:
                     log.debug("_tm.MOP_MODIFIED")
-                    # TODO MODIFIED not handled for now
+                    # nothing to do, will be handled after ITER_RECURSE
                 else:
                     log.warning(
                         "Operation op=%d is not expected, kp=%s. Skipping!",
@@ -232,7 +242,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                 path = make_gnmi_path(xpath)
                 cval = _tm.Value.str2val(value, csnode.info().type())
                 json_value = self.adapter.make_gnmi_json_value(cval, csnode)
-                yield op, path, json_value
+                yield self.ChangeOp(op), path, json_value
 
         def process_external_change(self, ext_sock):
             log.info("==>")
