@@ -365,8 +365,8 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
         path_with_prefix = make_xpath_path(gnmi_path=path,
                                            gnmi_prefix=prefix)
         prefix_str = make_xpath_path(gnmi_prefix=prefix)
-        log.debug("path_with_prefix=%s prefix_str=%s",
-                  path_with_prefix, prefix)
+        log.debug("path_with_prefix=%s prefix_str=%s allow_aggregation=%s",
+                  path_with_prefix, prefix, allow_aggregation)
 
         updates = []
         path_val_list = []

@@ -575,7 +575,8 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
 
 
     def get_updates(self, trans, path_str, save_flags, allow_aggregation=False):
-        log.debug("==> path_str=%s", path_str)
+        log.debug("==> path_str=%s allow_aggregation=%s", path_str,
+                  allow_aggregation)
         tagpath = '/' + '/'.join(tag for tag, _ in parse_instance_path(path_str))
         log.debug("tagpath=%s", tagpath)
         if tagpath != '/':
