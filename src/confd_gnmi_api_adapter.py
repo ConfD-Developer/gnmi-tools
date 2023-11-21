@@ -698,6 +698,10 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                     if csnode.info().shallow_type() == _tm.C_IDENTITYREF:
                         # in JSON, identityrefs are prefixed by module name
                         val = self.fix_path_prefixes(val)
+                    if csnode.info().shallow_type() == _tm.C_BOOL:
+                        # ConfD boolean value is lowercase string
+                        val = str(val).lower()
+                    log.debug("path=%s val=%s", path, val)
                     trans.set_elem(val, path)
             update_paths(path_str, jval, None)
         op = gnmi_pb2.UpdateResult.UPDATE
