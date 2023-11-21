@@ -350,8 +350,8 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         def process_changes(self, external_changes=False):
             log.debug("==> external_changes=%s", external_changes)
             with socket() as sub_sock:
-                cdb.connect(sub_sock, cdb.SUBSCRIPTION_SOCKET, '127.0.0.1',
-                            _tm.PORT)
+                cdb.connect(sub_sock, cdb.SUBSCRIPTION_SOCKET, self.adapter.addr,
+                            self.adapter.port)
                 has_non_cdb = self.subscribe_monitored_paths_cdb(sub_sock)
                 log.debug("subscribe_done")
                 assert self.stop_pipe is not None
