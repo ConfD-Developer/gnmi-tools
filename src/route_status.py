@@ -81,10 +81,14 @@ class DataCbs(object):
         assert len(self.route_provider.routes)
         elem = str(kp[0])
         key = str(kp[1][0])
-        route = self.route_provider.routes[key]
+        route = self.route_provider.routes.get(key, None)
         log.debug("elem=%s key=%s route=%s", elem, key, route)
         val = None
-        if elem == "leaf1":
+        if route is None:
+            pass
+        elif elem == "id":
+            val = _confd.Value(key)
+        elif elem == "leaf1":
             val = _confd.Value(route.leaf1)
         elif elem == "leaf2":
             val = _confd.Value(route.leaf2)
@@ -236,7 +240,7 @@ def generate_changes(stop_fun, route_data: RouteData, sleep_val=2):
                 log.info("msg=%s", msg)
                 s.sendall(msg.encode("utf-8"))
             except Exception:
-                log.info("Cannot connect to the change server!")
+                log.debug("Cannot connect to the change server!")
         if stop_fun():
             break
 

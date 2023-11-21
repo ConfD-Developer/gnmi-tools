@@ -157,6 +157,8 @@ class ConfDgNMIClient:
                 value = str(u.val)
             print("path: {} value {}".format(pfx_str + make_xpath_path(u.path),
                                              value))
+        for dpath in n.delete:
+            print("path deleted: {}".format(pfx_str + make_xpath_path(dpath)))
 
     @staticmethod
     def read_subscribe_responses(responses, read_count=-1):
