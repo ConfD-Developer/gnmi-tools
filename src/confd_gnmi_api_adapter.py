@@ -296,10 +296,11 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                 is_cdb = flags & _tm.CS_NODE_IS_CDB
                 if is_cdb:
                     subscribed = True
-                    cdb_type = cdb.SUB_RUNNING if flags & _tm.CS_NODE_IS_WRITE \
-                        else cdb.SUB_OPERATIONAL
-                    spoint = cdb.subscribe2(sub_sock, cdb_type, 0, prio, 0, path_str)
+                    spoint = cdb.subscribe2(sub_sock, cdb.SUB_OPERATIONAL, 0, prio, 0, path_str)
                     self.subpoint_paths[spoint] = subpoint_path
+                    if flags & _tm.CS_NODE_IS_WRITE:
+                        spoint = cdb.subscribe2(sub_sock, cdb.SUB_RUNNING, 0, prio, 0, path_str)
+                        self.subpoint_paths[spoint] = subpoint_path
                 else:
                     has_non_cdb = True
             if subscribed:

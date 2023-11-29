@@ -1,3 +1,4 @@
+import itertools
 import json
 import subprocess
 import threading
@@ -19,6 +20,13 @@ from utils.utils import log, nodeid_to_path
 @pytest.mark.grpc
 @pytest.mark.usefixtures("fix_method")
 class GrpcBase(object):
+    NS_IETF_INTERFACES = GnmiDemoServerAdapter.NS_INTERFACES
+    NS_OC_INTERFACES = "openconfig-interfaces:"
+
+    PREFIX_MAP = {
+        NS_IETF_INTERFACES: "if:",
+        NS_OC_INTERFACES: "oc-if:"
+    }
 
     @pytest.fixture
     def fix_method(self, request):
@@ -426,42 +434,23 @@ class GrpcBase(object):
     def _send_change_list_to_confd_thread(self, prefix_str, changes_list):
         log.info("==>")
         log.debug("prefix_str=%s change_list=%s", prefix_str, changes_list)
-        oper_cmd = ""
-        config_cmd = ""
+        path_prefix = make_gnmi_path(prefix_str)
         sleep(1)
 
-        def send_to_confd(config_cmd, oper_cmd):
-            def confd_cmd_subprocess(confd_cmd):
-                log.info("confd_cmd=%s", confd_cmd)
-                subprocess.run(confd_cmd, shell=True, check=True)
+        def confd_cmd_subprocess(confd_cmd):
+            log.debug("confd_cmd=%s", confd_cmd)
+            subprocess.run(f"confd_cmd -c '{confd_cmd}'", shell=True, check=True)
 
-            log.info("config_cmd=%s oper_cmd=%s", config_cmd, oper_cmd)
-            if config_cmd != "":
-                confd_cmd = "confd_cmd -c \"{}\"".format(
-                    config_cmd)
-                confd_cmd_subprocess(confd_cmd)
-            if oper_cmd != "":
-                confd_cmd = "confd_cmd -o -fr -c \"set {}\"".format(
-                    oper_cmd)
-                confd_cmd_subprocess(confd_cmd)
+        def format_command(c):
+            path = make_gnmi_path(c[0])
+            return "mset {} {}".format(
+                make_formatted_path(path, gnmi_prefix=path_prefix),
+                c[1].split(":")[-1])  # remove json prefix
 
-        for c in changes_list:
-            log.debug("processing c=%s", c)
-            if isinstance(c, str) and c == "send":
-                send_to_confd(config_cmd, oper_cmd)
-                oper_cmd = config_cmd = ""
+        for send, changes in itertools.groupby(changes_list, lambda c: c == "send"):
+            if not send:
+                confd_cmd_subprocess(";".join(format_command(c) for c in changes))
                 sleep(1)
-            else:
-                path_prefix = make_gnmi_path(prefix_str)
-                path = make_gnmi_path(c[0])
-                cmd = "{} {}".format(
-                    make_formatted_path(path, gnmi_prefix=path_prefix),
-                    c[1].split(":")[-1])  # remove json prefix
-                if "state" in prefix_str:
-                    oper_cmd += "{} ".format(cmd)
-                else:
-                    config_cmd += "mset {};".format(cmd)
-        log.info("<==")
 
     @staticmethod
     def _changes_list_to_pv(changes_list):
@@ -522,24 +511,18 @@ class GrpcBase(object):
              "iana-if-type:gigabitEthernet"),
             "send",
         ]
-        if data_type == "STATE" and self.adapter_type == AdapterType.API:
-            # TODO state `confd_cmd` is not transactional, so we need to check
-            # every item - add 'send' after each item (or fix checking method?)
-            new_change_list = []
-            for c in [x for x in changes_list if x != "send"]:
-                new_change_list.append(c)
-                new_change_list.append("send")
-            changes_list = new_change_list
         log.info("change_list=%s", changes_list)
 
-        path_value = [[]]  # empty element means no check
-        path_value.extend(self._changes_list_to_pv(changes_list))
-
         prefix_str = "{{prefix}}interfaces{}".format(prefix_state_str)
-        prefix = make_gnmi_path("/" + prefix_str.format(prefix=GnmiDemoServerAdapter.NS_INTERFACES))
-
         paths = [GrpcBase.mk_gnmi_if_path(self.list_paths_str[1], if_state_str,
                                           "N/A")]
+        self._test_subscribe(prefix_str, self.NS_IETF_INTERFACES,
+                             paths, changes_list)
+
+    def _test_subscribe(self, prefix_str, ns_prefix, paths, changes_list):
+        path_value = [[]]  # empty element means no check
+        path_value.extend(self._changes_list_to_pv(changes_list))
+        prefix = make_gnmi_path("/" + prefix_str.format(prefix=ns_prefix))
 
         kwargs = {"assert_fun": GrpcBase.assert_in_updates}
         kwargs["prefix"] = prefix
@@ -554,8 +537,7 @@ class GrpcBase(object):
             GnmiDemoServerAdapter.load_config_string(
                 self._changes_list_to_xml(changes_list, prefix_pfx))
         if self.adapter_type == AdapterType.API:
-            prefix_pfx = prefix_str.format(prefix='if:')
-            sleep(1)
+            prefix_pfx = prefix_str.format(prefix=self.PREFIX_MAP[ns_prefix])
             thr = threading.Thread(
                 target=self._send_change_list_to_confd_thread,
                 args=(prefix_pfx, changes_list,))

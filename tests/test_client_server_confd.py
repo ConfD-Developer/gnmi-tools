@@ -134,6 +134,22 @@ class TestGrpcConfD(GrpcBase):
 
     @pytest.mark.long
     @pytest.mark.confd
+    def test_subscribe_stream_with_state(self, request):
+        log.info("testing subscribe_stream with state under config")
+        changes_list = [
+            ("interface[name=gig0]/state/loopback-mode", "NONE"),
+            ("interface[name=gig2]/state/loopback-mode", "NONE"),
+            "send",
+            ("interface[name=gig0]/state/loopback-mode", "FACILITY"),
+            ("interface[name=gig2]/state/loopback-mode", "FACILITY"),
+            "send"]
+        prefix_str = '{prefix}interfaces'
+        paths = [make_gnmi_path("/interface")]
+        self._test_subscribe(prefix_str, self.NS_OC_INTERFACES,
+                             paths, changes_list)
+
+    @pytest.mark.long
+    @pytest.mark.confd
     def test_subscribe_stream_on_change_api_state(self, request):
         log.info("testing test_subscribe_stream_on_change_api_state")
         GnmiConfDApiServerAdapter.monitor_external_changes = True
