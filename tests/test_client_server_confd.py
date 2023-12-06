@@ -1,3 +1,4 @@
+import json
 import os
 import socket
 import sys
@@ -8,7 +9,7 @@ import pytest
 
 import grpc
 import gnmi_pb2
-from client_server_test_base import GrpcBase
+from client_server_test_base import GrpcBase, AdapterTests
 from confd_gnmi_common import make_gnmi_path, make_xpath_path
 from confd_gnmi_server import AdapterType
 from confd_gnmi_client import ConfDgNMIClient
@@ -17,12 +18,15 @@ from utils.utils import log
 sys.path.append(os.getenv('CONFD_DIR')+"/src/confd/pyapi/confd")
 from confd_gnmi_api_adapter import GnmiConfDApiServerAdapter
 
+from confd import maapi, maagic
+import _confd
+
 _confd_DEBUG = 1
 
 @pytest.mark.grpc
 @pytest.mark.confd
 @pytest.mark.usefixtures("fix_method")
-class TestGrpcConfD(GrpcBase):
+class TestGrpcConfD(AdapterTests):
 
     def set_adapter_type(self):
         self.adapter_type = AdapterType.API
@@ -73,12 +77,12 @@ class TestGrpcConfD(GrpcBase):
                                                   encoding = gnmi_pb2.Encoding.JSON_IETF,
                                                   allow_aggregation=True):
 
-        kwargs = {"assert_fun": GrpcBase.assert_updates}
+        kwargs = {"assert_fun": AdapterTests.assert_updates}
         kwargs["prefix"] = make_gnmi_path("/gnmi-tools:gnmi-tools")
 
         leaf_paths_val = [
-            (GrpcBase.mk_gnmi_if_path(p[0]), p[1]) if len(p) == 2 else (
-                GrpcBase.mk_gnmi_if_path(p[0]), p[1], p[2]) for p in
+            (AdapterTests.mk_gnmi_if_path(p[0]), p[1]) if len(p) == 2 else (
+                AdapterTests.mk_gnmi_if_path(p[0]), p[1], p[2]) for p in
             self.leaf_paths_str_for_gnmi_tools]
 
         if is_subscribe:
@@ -167,13 +171,13 @@ class TestGrpcConfD(GrpcBase):
         prefix = make_gnmi_path(prefix_str)
         paths = [make_gnmi_path("route-status:route-status")]
 
-        kwargs = {"assert_fun": GrpcBase.assert_in_updates}
+        kwargs = {"assert_fun": AdapterTests.assert_in_updates}
         kwargs["prefix"] = prefix
         kwargs["paths"] = paths
         kwargs["path_value"] = path_value
         kwargs["subscription_mode"] = gnmi_pb2.SubscriptionList.STREAM
         kwargs["read_count"] = len(path_value)
-        kwargs["assert_fun"] = GrpcBase.assert_in_updates
+        kwargs["assert_fun"] = AdapterTests.assert_in_updates
 
         route_data = RouteData(num=10, random=False)
         assert len(route_data.routes)
@@ -209,3 +213,79 @@ class TestGrpcConfD(GrpcBase):
         self._assert_auth("Bad password", password="bad")
         self._assert_auth("No such local user", username="bad", password="bad")
         self._assert_auth("No such local user", username="bad")
+
+
+class TestGrpcConfDSet(GrpcBase):
+    def set_adapter_type(self):
+        self.adapter_type = AdapterType.API
+
+    @pytest.fixture
+    def reset_cfg(self, request):
+        yield
+        with maapi.single_write_trans('admin', 'system') as trans:
+            gt = maagic.get_node(trans, '/gnmi-tools')
+            for lst in (gt.top_list, gt.double_key_list):
+                for inst in lst:
+                    if inst.name.startswith('test-'):
+                        trans.delete(inst._path)
+            trans.apply()
+
+    def assert_instance(self, lst='top-list', list_ix=1, leaf='down/str-leaf', value='abcd'):
+        key = f'{{test-{list_ix} test}}' if lst == 'double-key-list' \
+            else f'{{test-{list_ix}}}'
+        path = f'/gnmi-tools/{lst}{key}/{leaf}'
+        with maapi.single_read_trans('admin', 'system') as trans:
+            assert trans.get_elem(path) == value
+
+    def client_set(self, path, obj):
+        self.client.set(None,
+                        [(make_gnmi_path(path),
+                          gnmi_pb2.TypedValue(json_ietf_val=json.dumps(obj).encode()))])
+
+    @pytest.mark.confd
+    @pytest.mark.usefixtures("reset_cfg")
+    def test_set_list_create_instance(self, request):
+        obj = {'top-list':
+               {'name': 'test-1',
+                'down': {'str-leaf': 'abcd'}}}
+        self.client_set('/gnmi-tools:gnmi-tools', obj)
+        self.assert_instance()
+
+    @pytest.mark.confd
+    @pytest.mark.usefixtures("reset_cfg")
+    def test_set_list_update_instance(self, request):
+        obj = {'top-list':
+               {'name': 'test-1',
+                'down': {'str-leaf': 'abcd'}}}
+        self.client_set('/gnmi-tools:gnmi-tools', obj)
+        self.assert_instance()
+        obj['top-list']['down']['str-leaf'] = 'efgh'
+        self.client_set('/gnmi-tools:gnmi-tools', obj)
+        self.assert_instance(value='efgh')
+
+    @pytest.mark.confd
+    @pytest.mark.usefixtures("reset_cfg")
+    def test_set_list_2key_instance(self, request):
+        obj = {'double-key-list':
+               {'name': 'test-1',
+                'type': 'test',
+                'admin-state': 'tested'}}
+        self.client_set('/gnmi-tools:gnmi-tools', obj)
+        self.assert_instance(lst='double-key-list', leaf='admin-state', value='tested')
+
+    @pytest.mark.confd
+    @pytest.mark.usefixtures("reset_cfg")
+    def test_set_list_two_instances(self, request):
+        base = {'down': {'str-leaf': 'abcd'}}
+        insts = [{'name': 'test-1'}, {'name': 'test-2'}]
+        for inst in insts:
+            inst.update(base)
+        obj = {'top-list': insts}
+        self.client_set('/gnmi-tools:gnmi-tools', obj)
+        self.assert_instance()
+        self.assert_instance(list_ix=2)
+        for inst in insts:
+            inst['down']['str-leaf'] = 'efgh'
+        self.client_set('/gnmi-tools:gnmi-tools', obj)
+        self.assert_instance(value='efgh')
+        self.assert_instance(list_ix=2, value='efgh')

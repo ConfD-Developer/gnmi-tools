@@ -19,7 +19,7 @@ from utils.utils import log, nodeid_to_path
 
 @pytest.mark.grpc
 @pytest.mark.usefixtures("fix_method")
-class GrpcBase(object):
+class GrpcBase:
     NS_IETF_INTERFACES = GnmiDemoServerAdapter.NS_INTERFACES
     NS_OC_INTERFACES = "openconfig-interfaces:"
 
@@ -73,6 +73,8 @@ class GrpcBase(object):
             path_str = path_str.format(if_state_str, if_id)
         return make_gnmi_path(path_str)
 
+
+class AdapterTests(GrpcBase):
     def test_capabilities(self, request):
         log.info("testing capabilities")
         capabilities = self.client.get_capabilities()
@@ -133,7 +135,7 @@ class GrpcBase(object):
     def assert_updates(updates, path_vals):
         assert (len(updates) == len(path_vals))
         for i, u in enumerate(updates):
-            GrpcBase.assert_update(u, path_vals[i])
+            AdapterTests.assert_update(u, path_vals[i])
 
     @staticmethod
     def assert_one_in_update(updates, pv):
@@ -145,14 +147,14 @@ class GrpcBase(object):
         log.debug("==> updates=%s path_vals=%s", updates, path_vals)
         assert (len(updates) == len(path_vals))
         for pv in path_vals:
-            GrpcBase.assert_one_in_update(updates, pv)
+            AdapterTests.assert_one_in_update(updates, pv)
         log.debug("<==")
 
 
     def verify_get_response_updates(self, prefix, paths, path_value,
                                     datatype, encoding, assert_fun=None):
         if assert_fun is None:
-            assert_fun = GrpcBase.assert_updates
+            assert_fun = AdapterTests.assert_updates
         log.debug("prefix=%s paths=%s pv_list=%s datatype=%s encoding=%s",
                   prefix, paths, path_value, datatype, encoding)
         time_before = get_timestamp_ns()
@@ -192,7 +194,7 @@ class GrpcBase(object):
         :param allow_aggregation: allow aggregation of results in updates
         '''
         if assert_fun is None:
-            assert_fun = GrpcBase.assert_updates
+            assert_fun = AdapterTests.assert_updates
 
         stream_mode =  gnmi_pb2.SubscriptionMode.ON_CHANGE
         if sample_interval is not None:
@@ -278,7 +280,7 @@ class GrpcBase(object):
                             encoding = gnmi_pb2.Encoding.JSON_IETF,
                             allow_aggregation=True):
 
-        kwargs = {"assert_fun": GrpcBase.assert_updates}
+        kwargs = {"assert_fun": AdapterTests.assert_updates}
         if_state_str = prefix_state_str = ""
         db = GnmiDemoServerAdapter.get_adapter().demo_db
         if datatype == gnmi_pb2.GetRequest.DataType.STATE:
@@ -289,15 +291,15 @@ class GrpcBase(object):
         prefix = make_gnmi_path("/ietf-interfaces:interfaces{}".format(prefix_state_str))
         kwargs["prefix"] = prefix
         if_id = 8
-        leaf_paths = [GrpcBase.mk_gnmi_if_path(leaf_paths_str,
-                                               if_state_str,
-                                               if_id)
+        leaf_paths = [AdapterTests.mk_gnmi_if_path(leaf_paths_str,
+                                                   if_state_str,
+                                                   if_id)
                       for leaf_paths_str in self.leaf_paths_str]
         list_paths = [
-            GrpcBase.mk_gnmi_if_path(self.list_paths_str[0], if_state_str,
-                                     if_id),
-            GrpcBase.mk_gnmi_if_path(self.list_paths_str[1]),
-            GrpcBase.mk_gnmi_if_path(self.list_paths_str[2].format(prefix_state_str)),
+            AdapterTests.mk_gnmi_if_path(self.list_paths_str[0], if_state_str,
+                                         if_id),
+            AdapterTests.mk_gnmi_if_path(self.list_paths_str[1]),
+            AdapterTests.mk_gnmi_if_path(self.list_paths_str[2].format(prefix_state_str)),
         ]
         ifname = "{}if_{}".format(if_state_str, if_id)
 
@@ -342,22 +344,24 @@ class GrpcBase(object):
         verify_response_updates(**kwargs)
         kwargs["paths"] = [list_paths[1]]
         if allow_aggregation:
-            pv = [(GrpcBase.mk_gnmi_if_path(self.list_paths_str[0], if_state_str, i),
+            pv = [(AdapterTests.mk_gnmi_if_path(self.list_paths_str[0], if_state_str, i),
                    dict(zip(leaves, [f"{if_state_str}if_{i}"] + vals)))
                   for i in range(1, GnmiDemoServerAdapter.num_of_ifs+1)]
         else:
             pv = []
             for i in range(1, GnmiDemoServerAdapter.num_of_ifs+1):
-                pv.append((GrpcBase.mk_gnmi_if_path(self.leaf_paths_str[0], if_state_str, i),
+                pv.append((AdapterTests.mk_gnmi_if_path(self.leaf_paths_str[0], if_state_str, i),
                            f"{if_state_str}if_{i}"))
-                pv.append((GrpcBase.mk_gnmi_if_path(self.leaf_paths_str[1], if_state_str, i),
+                pv.append((AdapterTests.mk_gnmi_if_path(self.leaf_paths_str[1], if_state_str, i),
                            "iana-if-type:gigabitEthernet"))
                 if datatype != gnmi_pb2.GetRequest.DataType.STATE:
-                    pv.append((GrpcBase.mk_gnmi_if_path(self.leaf_paths_str[2], if_state_str, i),
+                    pv.append((AdapterTests.mk_gnmi_if_path(self.leaf_paths_str[2],
+                                                            if_state_str,
+                                                            i),
                                True))
 
         kwargs["path_value"] = pv
-        kwargs["assert_fun"] = GrpcBase.assert_in_updates
+        kwargs["assert_fun"] = AdapterTests.assert_in_updates
         verify_response_updates(**kwargs)
         if allow_aggregation:
             kwargs["paths"] = [list_paths[2]]
@@ -514,8 +518,8 @@ class GrpcBase(object):
         log.info("change_list=%s", changes_list)
 
         prefix_str = "{{prefix}}interfaces{}".format(prefix_state_str)
-        paths = [GrpcBase.mk_gnmi_if_path(self.list_paths_str[1], if_state_str,
-                                          "N/A")]
+        paths = [AdapterTests.mk_gnmi_if_path(self.list_paths_str[1], if_state_str,
+                                              "N/A")]
         self._test_subscribe(prefix_str, self.NS_IETF_INTERFACES,
                              paths, changes_list)
 
@@ -524,13 +528,13 @@ class GrpcBase(object):
         path_value.extend(self._changes_list_to_pv(changes_list))
         prefix = make_gnmi_path("/" + prefix_str.format(prefix=ns_prefix))
 
-        kwargs = {"assert_fun": GrpcBase.assert_in_updates}
+        kwargs = {"assert_fun": AdapterTests.assert_in_updates}
         kwargs["prefix"] = prefix
         kwargs["paths"] = paths
         kwargs["path_value"] = path_value
         kwargs["subscription_mode"] = gnmi_pb2.SubscriptionList.STREAM
         kwargs["read_count"] = len(path_value)
-        kwargs["assert_fun"] = GrpcBase.assert_in_updates
+        kwargs["assert_fun"] = AdapterTests.assert_in_updates
 
         if self.adapter_type == AdapterType.DEMO:
             prefix_pfx = prefix_str.format(prefix='')
@@ -561,15 +565,15 @@ class GrpcBase(object):
         log.info("testing set")
         if_id = 8
         prefix = make_gnmi_path("/ietf-interfaces:interfaces")
-        paths = [GrpcBase.mk_gnmi_if_path(self.leaf_paths_str[1], "", if_id)]
+        paths = [AdapterTests.mk_gnmi_if_path(self.leaf_paths_str[1], "", if_id)]
         vals = [gnmi_pb2.TypedValue(json_ietf_val=b"\"iana-if-type:fastEther\"")]
         time_before = get_timestamp_ns()
         response = self.client.set(prefix, list(zip(paths, vals)))
         time_after = get_timestamp_ns()
         assert (time_before <= response.timestamp and response.timestamp <= time_after)
         assert (response.prefix == prefix)
-        GrpcBase.assert_set_response(response.response[0],
-                                     (paths[0], gnmi_pb2.UpdateResult.UPDATE))
+        AdapterTests.assert_set_response(response.response[0],
+                                         (paths[0], gnmi_pb2.UpdateResult.UPDATE))
 
         # fetch with get and see value has changed
         datatype = gnmi_pb2.GetRequest.DataType.CONFIG
@@ -578,19 +582,19 @@ class GrpcBase(object):
         for n in get_response.notification:
             log.debug("n=%s", n)
             assert (n.prefix == prefix)
-            GrpcBase.assert_updates(n.update, [(paths[0], "iana-if-type:fastEther")])
+            AdapterTests.assert_updates(n.update, [(paths[0], "iana-if-type:fastEther")])
 
         # put value back
         vals = [gnmi_pb2.TypedValue(json_ietf_val=b"\"iana-if-type:gigabitEthernet\"")]
         response = self.client.set(prefix, list(zip(paths, vals)))
-        GrpcBase.assert_set_response(response.response[0],
-                                     (paths[0], gnmi_pb2.UpdateResult.UPDATE))
+        AdapterTests.assert_set_response(response.response[0],
+                                         (paths[0], gnmi_pb2.UpdateResult.UPDATE))
 
     def test_set_encoding(self, request):
         log.info("testing set_encoding")
         if_id = 8
         prefix = make_gnmi_path("/ietf-interfaces:interfaces")
-        paths = [GrpcBase.mk_gnmi_if_path(self.leaf_paths_str[1], "", if_id)]
+        paths = [AdapterTests.mk_gnmi_if_path(self.leaf_paths_str[1], "", if_id)]
 
         @self.encoding_test_decorator
         def test_it(encoding):
@@ -616,5 +620,5 @@ class GrpcBase(object):
         vals = [gnmi_pb2.TypedValue(
             json_ietf_val=b"\"iana-if-type:gigabitEthernet\"")]
         response = self.client.set(prefix, list(zip(paths, vals)))
-        GrpcBase.assert_set_response(response.response[0],
-                                     (paths[0], gnmi_pb2.UpdateResult.UPDATE))
+        AdapterTests.assert_set_response(response.response[0],
+                                         (paths[0], gnmi_pb2.UpdateResult.UPDATE))

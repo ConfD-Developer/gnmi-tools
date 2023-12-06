@@ -1,6 +1,6 @@
 import pytest
 
-from client_server_test_base import GrpcBase
+from client_server_test_base import AdapterTests
 from confd_gnmi_server import AdapterType
 
 _confd_DEBUG = 1
@@ -9,7 +9,7 @@ _confd_DEBUG = 1
 @pytest.mark.grpc
 @pytest.mark.demo
 @pytest.mark.usefixtures("fix_method")
-class TestGrpcDemo(GrpcBase):
+class TestGrpcDemo(AdapterTests):
 
     def set_adapter_type(self):
         self.adapter_type = AdapterType.DEMO

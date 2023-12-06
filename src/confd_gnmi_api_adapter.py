@@ -1,4 +1,5 @@
 import logging
+import functools
 import itertools
 import os
 import re
@@ -691,41 +692,14 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         log.info("<== notifications=%s", notifications)
         return notifications
 
-    def set_update(self, trans, prefix, path, val):
-        path_str = self.fix_path_prefixes(make_formatted_path(path, prefix))
-        if val.string_val:
-            trans.set_elem(val.string_val, path_str)
-        elif val.json_ietf_val:
-            jval = json.loads(val.json_ietf_val)
-
-            def update_paths(path, val, parent_node):
-                # TODO: no support for list instances
-                csnode = _tm.cs_node_cd(parent_node, path)
-                if isinstance(val, dict):
-                    trans.pushd(path)
-                    for leaf, value in val.items():
-                        update_paths(self.fix_path_prefixes(leaf), value, csnode)
-                else:
-                    if csnode.info().shallow_type() == _tm.C_IDENTITYREF:
-                        # in JSON, identityrefs are prefixed by module name
-                        val = self.fix_path_prefixes(val)
-                    if csnode.info().shallow_type() == _tm.C_BOOL:
-                        # ConfD boolean value is lowercase string
-                        val = str(val).lower()
-                    log.debug("path=%s val=%s", path, val)
-                    trans.set_elem(val, path)
-            update_paths(path_str, jval, None)
-        op = gnmi_pb2.UpdateResult.UPDATE
-        return op
-
     def set(self, prefix, updates):
         log.info("==> prefix=%s, updates=%s", prefix, updates)
         context = "netconf"
         groups = [self.username]
         with maapi.single_write_trans(self.username, context, groups,
                                       ip=self.addr, port=self.port) as t:
-            ops = [(up.path, self.set_update(t, prefix, up.path, up.val))
-                   for up in updates]
+            updater = Updater(self, t, prefix)
+            ops = [(up.path, updater.update(up.path, up.val)) for up in updates]
             t.apply()
 
         log.info("==> ops=%s", ops)
@@ -745,3 +719,38 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
 
         log.info("==> ops=%s", ops)
         return ops
+
+
+class Updater:
+    """Update message handler.  One instance is suppposed to handle
+    all Update messages in one SetRequest.
+    """
+    def __init__(self, adapter, trans, prefix):
+        self.adapter = adapter
+        self.trans = trans
+        self.prefix = prefix
+
+    def update(self, path, value):
+        if value.HasField('json_ietf_val'):
+            obj = json.loads(value.json_ietf_val)
+        elif value.HasField('json_val'):
+            log.warning('using json_val as json_ietf_val')
+            obj = json.loads(value.json_val)
+        else:
+            raise Exception(f'{value.ListFields()[0][0].name} not supported for updates')
+        elems = [gnmi_pb2.PathElem(name='data')] + list(self.prefix.elem) + list(path.elem)
+        data = functools.reduce(self.build_obj, reversed(elems), obj)
+        log.debug('sending %s to JSON load', data)
+        sid = self.trans.load_config_stream(_tm.maapi.CONFIG_JSON | _tm.maapi.CONFIG_MERGE)
+        with socket() as sock:
+            _tm.stream_connect(sock, sid, 0, self.adapter.addr, self.adapter.port)
+            sock.send(json.dumps(data).encode())
+        if self.trans.maapi.load_config_stream_result(sid) != _tm.OK:
+            raise Exception('load_config_stream failed')
+        return gnmi_pb2.UpdateResult.UPDATE
+
+    def build_obj(self, obj, elem):
+        if elem.key:
+            assert isinstance(obj, dict), 'cannot apply keys to a non-container'
+            obj.update(elem.key)
+        return {elem.name: obj}
