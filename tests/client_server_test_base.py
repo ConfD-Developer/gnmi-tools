@@ -1,3 +1,5 @@
+from abc import abstractmethod
+
 import itertools
 import json
 import subprocess
@@ -11,8 +13,8 @@ import pytest
 import gnmi_pb2
 from confd_gnmi_client import ConfDgNMIClient
 from confd_gnmi_common import make_gnmi_path, datatype_str_to_int, \
-    make_formatted_path, get_timestamp_ns
-from confd_gnmi_demo_adapter import GnmiDemoServerAdapter
+    make_formatted_path, get_timestamp_ns, add_path_prefix
+from confd_gnmi_demo_adapter import GnmiDemoServerAdapter, ChangeDel, ChangeVal
 from confd_gnmi_servicer import AdapterType, ConfDgNMIServicer
 from utils.utils import log, nodeid_to_path
 
@@ -22,11 +24,17 @@ from utils.utils import log, nodeid_to_path
 class GrpcBase:
     NS_IETF_INTERFACES = GnmiDemoServerAdapter.NS_INTERFACES
     NS_OC_INTERFACES = "openconfig-interfaces:"
+    NS_GNMI_TOOLS = GnmiDemoServerAdapter.NS_GNMI_TOOLS
 
     PREFIX_MAP = {
         NS_IETF_INTERFACES: "if:",
-        NS_OC_INTERFACES: "oc-if:"
+        NS_OC_INTERFACES: "oc-if:",
+        NS_GNMI_TOOLS: NS_GNMI_TOOLS
     }
+
+    @abstractmethod
+    def set_adapter_type(self):
+        raise NotImplementedError
 
     @pytest.fixture
     def fix_method(self, request):
@@ -37,6 +45,7 @@ class GrpcBase:
         self.set_adapter_type()
         self.server = ConfDgNMIServicer.serve(adapter_type=self.adapter_type, insecure=True)
         self.client = ConfDgNMIClient(insecure=True)
+        GnmiDemoServerAdapter.fill_demo_db()
         log.debug("<== fixture method setup")
         yield
         log.debug("==> fixture method teardown (nodeid %s)" % nodeid_path)
@@ -105,7 +114,9 @@ class AdapterTests(GrpcBase):
         assert gnmi_pb2.Encoding.JSON_IETF in capabilities.supported_encodings
 
     @staticmethod
-    def assert_update(update, path_val):
+    def assert_update(update, path_val,
+                      update_prefix=gnmi_pb2.Path(),
+                      pv_prefix=gnmi_pb2.Path()):
         """
         Asserts that the update matches the expected path and value.
 
@@ -125,7 +136,8 @@ class AdapterTests(GrpcBase):
 
         # Validate the path if required
         if check_path:
-            assert update.path == path_val[0]
+            assert (add_path_prefix(update.path, update_prefix) ==
+                    add_path_prefix(path_val[0], pv_prefix))
 
         # Parse the json_ietf_val attribute of the update object
         json_value = json.loads(update.val.json_ietf_val)
@@ -134,27 +146,39 @@ class AdapterTests(GrpcBase):
         assert json_value == path_val[1]
 
     @staticmethod
-    def assert_set_response(response, path_op):
-        assert (response.path == path_op[0])
+    def assert_set_response(response, path_op,
+                            response_prefix=gnmi_pb2.Path(),
+                            set_prefix=gnmi_pb2.Path()):
+        assert (add_path_prefix(response.path, response_prefix) ==
+                add_path_prefix(path_op[0], set_prefix))
         assert (response.op == path_op[1])
 
     @staticmethod
-    def assert_updates(updates, path_vals):
+    def assert_updates(updates, path_vals,
+                       update_prefix=gnmi_pb2.Path(),
+                       pv_prefix=gnmi_pb2.Path()):
         assert (len(updates) == len(path_vals))
         for i, u in enumerate(updates):
-            AdapterTests.assert_update(u, path_vals[i])
+            AdapterTests.assert_update(u, path_vals[i], update_prefix, pv_prefix)
 
     @staticmethod
-    def assert_one_in_update(updates, pv):
-        assert any(u.path == pv[0] and json.loads(u.val.json_ietf_val) == pv[1]
-                   for u in updates)
+    def assert_one_in_update(updates, pv,
+                             update_prefix=gnmi_pb2.Path(),
+                             pv_prefix=gnmi_pb2.Path()):
+        assert any(
+            add_path_prefix(u.path, update_prefix) == add_path_prefix(pv[0], pv_prefix)
+            and json.loads(u.val.json_ietf_val) == pv[1]
+            for u in updates
+        )
 
     @staticmethod
-    def assert_in_updates(updates, path_vals):
+    def assert_in_updates(updates, path_vals,
+                          update_prefix=gnmi_pb2.Path(),
+                          pv_prefix=gnmi_pb2.Path()):
         log.debug("==> updates=%s path_vals=%s", updates, path_vals)
         assert (len(updates) == len(path_vals))
         for pv in path_vals:
-            AdapterTests.assert_one_in_update(updates, pv)
+            AdapterTests.assert_one_in_update(updates, pv, update_prefix, pv_prefix)
         log.debug("<==")
 
 
@@ -174,23 +198,27 @@ class AdapterTests(GrpcBase):
             if prefix:
                 assert (n.prefix == prefix)
             assert(time_before <= n.timestamp and n.timestamp <= time_after)
-            assert_fun(n.update, path_value)
+            assert_fun(n.update, path_value, n.prefix, prefix)
 
-    def verify_sub_sub_response_updates(self, prefix, paths, path_value,
-                                        assert_fun=None,
-                                        subscription_mode=gnmi_pb2.SubscriptionList.ONCE,
-                                        poll_interval=0,
-                                        poll_count=0, read_count=-1,
-                                        sample_interval = None,
-                                        encoding=gnmi_pb2.Encoding.JSON_IETF,
-                                        allow_aggregation=True):
+    def subscribe_and_verify_response(
+        self, prefix, paths, path_value, delete_paths=[],
+        assert_fun=None,
+        subscription_mode=gnmi_pb2.SubscriptionList.ONCE,
+        poll_interval=0, poll_count=0, read_count=-1,
+        sample_interval = None,
+        encoding=gnmi_pb2.Encoding.JSON_IETF,
+        allow_aggregation=True
+    ):
         '''
         Invoke subscription and verify received updates
-        :param prefix:  gNMI prefix for subscription
-        :param paths:   gNMI path for subscription
-        :param path_value: array of tuples of expected (path,value) for each response
-                           path is gNMI path, val is response value (in json)
-        :param assert_fun: function to verify updates according to path_value
+        :param prefix: gNMI prefix for the subscription
+        :param paths: gNMI paths for the subscription
+        :param path_value: one array or array of arrays of tuples
+            of expected (path, value) in update field
+            of responses, val is response value (in json)
+        :param delete_paths: array or array of array of paths in delete field of responses
+        :param assert_fun: function to verify updates in one response according
+                           to current path_value element
         :param subscription_mode:
         :param poll_interval: interval between polls (for gnmi_pb2.SubscriptionList.POLL only)
         :param poll_count: number of polls (for gnmi_pb2.SubscriptionList.POLL only)
@@ -203,29 +231,32 @@ class AdapterTests(GrpcBase):
         if assert_fun is None:
             assert_fun = AdapterTests.assert_updates
 
-        stream_mode =  gnmi_pb2.SubscriptionMode.ON_CHANGE
+        stream_mode = gnmi_pb2.SubscriptionMode.ON_CHANGE
         if sample_interval is not None:
             assert  subscription_mode == gnmi_pb2.SubscriptionList.STREAM
             stream_mode =  gnmi_pb2.SubscriptionMode.SAMPLE
 
-        log.debug("paths=%s path_value=%s", paths, path_value)
+        log.debug("paths=%s path_value=%s delete_paths=%s",
+                  paths, path_value, delete_paths)
         response_count = 0
-        pv_idx = 0
-        for pv in path_value:
-            if not isinstance(pv, list):
-                pv_idx = -1
-                break
-        log.debug("pv_idx=%s", pv_idx)
+
+        def init_idx(vals):
+            idx = -1 if not vals or any(
+                not isinstance(v, list) for v in vals) else 0
+            return idx
+        pv_idx = init_idx(path_value)
+        del_idx = init_idx(delete_paths)
+        log.debug("pv_idx=%s del_idx=%s", pv_idx, del_idx)
 
         def read_subscribe_responses(responses, read_count=-1):
-            nonlocal response_count, pv_idx
+            nonlocal response_count, pv_idx, del_idx
             prev_response_time_ms = 0
             SAMPLE_THRESHOLD = 300
             for response in responses:
                 time_after = get_timestamp_ns()
                 log.debug("response=%s response_count=%i time_after=%i", response,
                           response_count, time_after)
-                response_time_ms = time_after/1000000
+                response_time_ms = time_after / 1000000
                 if response.sync_response:
                     log.debug("sync_response")
                     assert response_count == 1  # sync expected only after first response
@@ -234,7 +265,11 @@ class AdapterTests(GrpcBase):
                     assert (time_before <= response.update.timestamp and
                             response.update.timestamp <= time_after)
                     if prefix:
-                        assert (response.update.prefix == prefix)
+                        prefix_str = make_formatted_path(prefix)
+                        prefix_update_str = make_formatted_path(response.update.prefix)
+                        assert (prefix_update_str.startswith(prefix_str)
+                                or prefix_update_str.startswith(prefix_str))
+
                     pv_to_check = path_value
                     if pv_idx != -1:
                         assert pv_idx < len(path_value)
@@ -242,6 +277,18 @@ class AdapterTests(GrpcBase):
                         pv_idx += 1
                     if len(pv_to_check) > 0:  # skip empty arrays
                         assert_fun(response.update.update, pv_to_check)
+
+                    del_to_check = delete_paths
+                    if del_idx != -1:
+                        assert del_idx < len(delete_paths)
+                        del_to_check = delete_paths[del_idx]
+                        del_idx += 1
+                    if len(del_to_check) > 0:
+                        assert (len(response.update.delete) == len(del_to_check))
+                        for i, d in enumerate(response.update.delete):
+                            assert (add_path_prefix(d, response.update.prefix)
+                                    == add_path_prefix(del_to_check[i], prefix)) # TODO do we need check one_in_delete
+
                     log.debug("response_count=%i pv_idx=%i", response_count, pv_idx)
                     if sample_interval and response_count > 1:
                         assert (response_time_ms > (prev_response_time_ms + sample_interval - SAMPLE_THRESHOLD)) and (
@@ -258,25 +305,30 @@ class AdapterTests(GrpcBase):
             assert read_count == -1 or read_count == 0
 
         read_fun = read_subscribe_responses
-        subscription_list = \
-            ConfDgNMIClient.make_subscription_list(prefix,
-                                                   paths,
-                                                   subscription_mode,
-                                                   encoding,
-                                                   stream_mode = stream_mode,
-                                                   sample_interval_ms=sample_interval,
-                                                   allow_aggregation=allow_aggregation)
+        subscription_list = ConfDgNMIClient.make_subscription_list(
+            prefix,
+            paths,
+            subscription_mode,
+            encoding,
+            stream_mode = stream_mode,
+            sample_interval_ms=sample_interval,
+            allow_aggregation=allow_aggregation
+        )
 
         time_before = get_timestamp_ns()
-        responses = self.client.subscribe(subscription_list,
-                                          read_fun=read_fun,
-                                          poll_interval=poll_interval,
-                                          poll_count=poll_count,
-                                          read_count=read_count)
+        responses = self.client.subscribe(
+            subscription_list,
+            read_fun=read_fun,
+            poll_interval=poll_interval,
+            poll_count=poll_count,
+            read_count=read_count
+        )
 
         log.debug("responses=%s", responses)
         if poll_count:
-            assert (poll_count + 1 == response_count)
+            assert poll_count + 1 == response_count
+
+
 
     def _test_get_subscribe(self, is_subscribe=False,
                             datatype=gnmi_pb2.GetRequest.DataType.CONFIG,
@@ -289,12 +341,11 @@ class AdapterTests(GrpcBase):
 
         kwargs = {"assert_fun": AdapterTests.assert_updates}
         if_state_str = prefix_state_str = ""
-        db = GnmiDemoServerAdapter.get_adapter().demo_db
+        db = GnmiDemoServerAdapter.demo_db
         if datatype == gnmi_pb2.GetRequest.DataType.STATE:
             prefix_state_str = "-state"
             if_state_str = "state_"
             db = GnmiDemoServerAdapter.demo_state_db
-        map_db = GnmiDemoServerAdapter._demo_db_to_key_elem_map(db)
         prefix = make_gnmi_path("/ietf-interfaces:interfaces{}".format(prefix_state_str))
         kwargs["prefix"] = prefix
         if_id = 8
@@ -311,7 +362,7 @@ class AdapterTests(GrpcBase):
         ifname = "{}if_{}".format(if_state_str, if_id)
 
         if is_subscribe:
-            verify_response_updates = self.verify_sub_sub_response_updates
+            verify_response_updates = self.subscribe_and_verify_response
             kwargs["subscription_mode"] = subscription_mode
             kwargs["poll_interval"] = poll_interval
             kwargs["poll_count"] = poll_count
@@ -371,12 +422,15 @@ class AdapterTests(GrpcBase):
         kwargs["assert_fun"] = AdapterTests.assert_in_updates
         verify_response_updates(**kwargs)
         if allow_aggregation:
+            map_db = GnmiDemoServerAdapter._demo_db_to_key_elem_map(db)
+            # remove non interface related entries
+            map_db = {key: value for key, value in map_db.items() if "if_" in key}
             kwargs["paths"] = [list_paths[2]]
             if allow_aggregation:
                 kwargs["path_value"] = [(list_paths[2],
                                         {"interface": list(map_db.values())})]
             kwargs["assert_fun"] = None
-            kwargs["prefix"] = None
+            kwargs["prefix"] = gnmi_pb2.Path()
             verify_response_updates(**kwargs)
 
     @pytest.mark.parametrize("data_type", ["CONFIG", "STATE"])
@@ -454,9 +508,16 @@ class AdapterTests(GrpcBase):
 
         def format_command(c):
             path = make_gnmi_path(c[0])
-            return "mset {} {}".format(
-                make_formatted_path(path, gnmi_prefix=path_prefix),
-                c[1].split(":")[-1])  # remove json prefix
+            if isinstance(c[1], (str, ChangeVal)):
+                cmd = "mset {} {}".format(
+                    make_formatted_path(path, gnmi_prefix=path_prefix),
+                    c[1].split(":")[-1])  # remove json prefix
+            elif isinstance(c[1], ChangeDel):
+                cmd = "mdel {}".format(
+                    make_formatted_path(path, gnmi_prefix=path_prefix))
+            else:
+                raise TypeError(f"Invalid value type: {type(c[1])}")
+            return cmd
 
         for send, changes in itertools.groupby(changes_list, lambda c: c == "send"):
             if not send:
@@ -464,24 +525,33 @@ class AdapterTests(GrpcBase):
                 sleep(1)
 
     @staticmethod
-    def _changes_list_to_pv(changes_list):
+    def _changes_list_to_pv_del(changes_list):
         '''
-        Return path_value_list created from changes_list.
+        Return pv_res and delete_res lists created from changes_list.
         :param changes_list:
-        :return:
+        :return: (pv_res, delete_res)
         '''
-        path_value = []
-        pv_idx = 0
+        pv_res, del_res = [], []
+        pv_candidates, del_candidates = [], []
         for c in changes_list:
-            if isinstance(c, str):
+            if type(c) is str:
                 if c == "send":
-                    pv_idx += 1
+                    pv_res.append(pv_candidates)
+                    del_res.append(del_candidates)
+                    pv_candidates, del_candidates = [], []
             else:
-                if len(path_value) < pv_idx + 1:
-                    path_value.append([])
-                path_value[pv_idx].append((make_gnmi_path(c[0]), c[1]))
-        log.debug("path_value=%s", path_value)
-        return path_value
+                if isinstance(c[1], (str, int)) or isinstance(c[1], ChangeVal):
+                    pv_candidates.append((make_gnmi_path(c[0]), c[1]))
+                elif isinstance(c[1], ChangeDel):
+                    if c[1].deleted_paths:
+                        for p in c[1].deleted_paths:
+                            del_candidates.append(make_gnmi_path(p))
+                    else:
+                        del_candidates.append(make_gnmi_path(c[0]))
+                else:
+                    raise TypeError(f"Invalid value type: {type(c[1])}")
+        log.debug("pv_res=%s delete_res=%s", pv_res, del_res)
+        return pv_res, del_res
 
     @staticmethod
     def _changes_list_to_xml(changes_list, prefix_str):
@@ -496,7 +566,12 @@ class AdapterTests(GrpcBase):
             else:
                 ET.SubElement(el, "path").text = "{}/{}".format(prefix_str,
                                                                 c[0])
-                ET.SubElement(el, "val").text = c[1]
+                if isinstance(c[1], str) or isinstance(c[1], ChangeVal):
+                    ET.SubElement(el, "val").text = c[1]
+                elif isinstance(c[1], ChangeDel):
+                    ET.SubElement(el, "del")
+                else:
+                    raise TypeError(f"Invalid value type: {type(c[1])}")
         xml_str = ET.tostring(demo, encoding='unicode')
         log.debug("xml_str=%s", xml_str)
         return xml_str
@@ -505,7 +580,7 @@ class AdapterTests(GrpcBase):
     @pytest.mark.parametrize("data_type", ["CONFIG", "STATE"])
     def test_subscribe_stream(self, request, data_type):
         log.info("testing subscribe_stream")
-        if_state_str = prefix_state_str = ""
+        if_state_str, prefix_state_str = "", ""
         if data_type == "STATE":
             prefix_state_str = "-state"
             if_state_str = "state_"
@@ -530,15 +605,38 @@ class AdapterTests(GrpcBase):
         self._test_subscribe(prefix_str, self.NS_IETF_INTERFACES,
                              paths, changes_list)
 
+    @pytest.mark.usefixtures("reset_cfg")
+    def test_subscribe_stream_delete(self, request):
+        log.info("testing subscribe_stream_delete")
+
+        changes_list = [
+            ("top-d", ChangeDel(deleted_paths=[
+               "/top-d/top-d-list[name=n1]",
+               "/top-d/top-d-list[name=n2]",
+               "/top-d/top-d-list[name=n3]",
+               "/top-d/top-d-list[name=n4]",
+            ])),
+            "send",
+        ]
+        log.info("change_list=%s", changes_list)
+
+        prefix_str = "{prefix}gnmi-tools"
+        paths = [make_gnmi_path("top-d")]
+        self._test_subscribe(prefix_str, "gnmi-tools:",
+                             paths, changes_list)
+
     def _test_subscribe(self, prefix_str, ns_prefix, paths, changes_list):
-        path_value = [[]]  # empty element means no check
-        path_value.extend(self._changes_list_to_pv(changes_list))
+        path_value, delete = [[]], [[]]  # empty element means no check - skip first response
+        pv, de = self._changes_list_to_pv_del(changes_list)
+        path_value.extend(pv)
+        delete.extend(de)
         prefix = make_gnmi_path("/" + prefix_str.format(prefix=ns_prefix))
 
         kwargs = {"assert_fun": AdapterTests.assert_in_updates}
         kwargs["prefix"] = prefix
         kwargs["paths"] = paths
         kwargs["path_value"] = path_value
+        kwargs["delete_paths"] = delete
         kwargs["subscription_mode"] = gnmi_pb2.SubscriptionList.STREAM
         kwargs["read_count"] = len(path_value)
         kwargs["assert_fun"] = AdapterTests.assert_in_updates
@@ -548,13 +646,16 @@ class AdapterTests(GrpcBase):
             GnmiDemoServerAdapter.load_config_string(
                 self._changes_list_to_xml(changes_list, prefix_pfx))
         if self.adapter_type == AdapterType.API:
-            prefix_pfx = prefix_str.format(prefix=self.PREFIX_MAP[ns_prefix])
+            if ns_prefix in self.PREFIX_MAP:
+                prefix_pfx = prefix_str.format(prefix=self.PREFIX_MAP[ns_prefix])
+            else:
+                prefix_pfx = prefix_str.format(prefix='')
             thr = threading.Thread(
                 target=self._send_change_list_to_confd_thread,
                 args=(prefix_pfx, changes_list,))
             thr.start()
 
-        self.verify_sub_sub_response_updates(**kwargs)
+        self.subscribe_and_verify_response(**kwargs)
 
         if self.adapter_type == AdapterType.API:
             thr.join()
@@ -581,7 +682,8 @@ class AdapterTests(GrpcBase):
         assert (time_before <= response.timestamp and response.timestamp <= time_after)
         assert (response.prefix == prefix)
         AdapterTests.assert_set_response(response.response[0],
-                                         (paths[0], gnmi_pb2.UpdateResult.UPDATE))
+                                         (paths[0], gnmi_pb2.UpdateResult.UPDATE),
+                                         response.prefix, prefix)
 
         # fetch with get and see value has changed
         datatype = gnmi_pb2.GetRequest.DataType.CONFIG
@@ -590,13 +692,15 @@ class AdapterTests(GrpcBase):
         for n in get_response.notification:
             log.debug("n=%s", n)
             assert (n.prefix == prefix)
-            AdapterTests.assert_updates(n.update, [(paths[0], "iana-if-type:fastEther")])
+            AdapterTests.assert_updates(n.update, [(paths[0], "iana-if-type:fastEther")],
+                                        n.prefix, prefix)
 
         # put value back
         vals = [gnmi_pb2.TypedValue(json_ietf_val=b"\"iana-if-type:gigabitEthernet\"")]
         response = self.client.set(prefix, list(zip(paths, vals)))
         AdapterTests.assert_set_response(response.response[0],
-                                         (paths[0], gnmi_pb2.UpdateResult.UPDATE))
+                                         (paths[0], gnmi_pb2.UpdateResult.UPDATE),
+                                         response.prefix, prefix)
 
     @pytest.mark.usefixtures("reset_cfg")
     def test_set_encoding(self, request):
@@ -630,4 +734,5 @@ class AdapterTests(GrpcBase):
             json_ietf_val=b"\"iana-if-type:gigabitEthernet\"")]
         response = self.client.set(prefix, list(zip(paths, vals)))
         AdapterTests.assert_set_response(response.response[0],
-                                         (paths[0], gnmi_pb2.UpdateResult.UPDATE))
+                                         (paths[0], gnmi_pb2.UpdateResult.UPDATE),
+                                         response.prefix, prefix)

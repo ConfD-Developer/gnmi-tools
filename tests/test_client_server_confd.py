@@ -103,7 +103,7 @@ class TestGrpcConfD(AdapterTests):
             self.leaf_paths_str_for_gnmi_tools]
 
         if is_subscribe:
-            verify_response_updates = self.verify_sub_sub_response_updates
+            verify_response_updates = self.subscribe_and_verify_response
             kwargs["subscription_mode"] = subscription_mode
             kwargs["poll_interval"] = poll_interval
             kwargs["poll_count"] = poll_count
@@ -182,7 +182,7 @@ class TestGrpcConfD(AdapterTests):
             "send",
         ]
         path_value = [[]]  # empty element means no check
-        path_value.extend(self._changes_list_to_pv(changes_list))
+        path_value.extend(self._changes_list_to_pv_del(changes_list)[0])
 
         prefix_str = ""
         prefix = make_gnmi_path(prefix_str)
@@ -208,7 +208,7 @@ class TestGrpcConfD(AdapterTests):
         change_thread.start()
 
         try:
-            self.verify_sub_sub_response_updates(**kwargs)
+            self.subscribe_and_verify_response(**kwargs)
             sleep(1)
 
         finally:

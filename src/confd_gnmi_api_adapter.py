@@ -146,9 +146,6 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                         yield prefix, updates, deletes
                 self.change_db = []
 
-        def get_monitored_changes(self):
-            raise NotImplementedError
-
         def get_sample(self, path, prefix, allow_aggregation=False,
                        start_change_processing=False):
             log.debug("==>")

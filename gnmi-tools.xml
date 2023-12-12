@@ -54,5 +54,25 @@
             <type>opticalTransport</type>
             <admin-state>In-Service</admin-state>
         </double-key-list>
+        <top-d>
+            <top-d-list>
+                <name>n1</name>
+            </top-d-list>
+            <top-d-list>
+                <name>n2</name>
+                <empty-leaf/>
+            </top-d-list>
+            <top-d-list>
+                <name>n3</name>
+                <pres/>
+            </top-d-list>
+            <top-d-list>
+                <name>n4</name>
+                <down>
+                    <str-leaf>test</str-leaf>
+                    <int-leaf>23</int-leaf>
+                </down>
+            </top-d-list>
+        </top-d>
     </gnmi-tools>
 </config>

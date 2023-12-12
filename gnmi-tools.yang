@@ -39,6 +39,14 @@ module gnmi-tools {
         leaf type {type string;}
         leaf admin-state {type string;}
     }
+
+    container top-d {
+      list top-d-list {
+        key name;
+        leaf name {type string;}
+        uses combo;
+      }
+    }
   }
 
 }

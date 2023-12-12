@@ -2,6 +2,7 @@ import pytest
 
 from client_server_test_base import AdapterTests
 from confd_gnmi_server import AdapterType
+from confd_gnmi_demo_adapter import GnmiDemoServerAdapter
 
 _confd_DEBUG = 1
 
@@ -16,3 +17,4 @@ class TestGrpcDemo(AdapterTests):
 
     def _do_reset_cfg(self):
         yield
+        GnmiDemoServerAdapter.reset()
