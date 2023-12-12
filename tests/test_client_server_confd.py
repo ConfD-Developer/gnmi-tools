@@ -214,6 +214,27 @@ class TestGrpcConfD(AdapterTests):
         self._assert_auth("No such local user", username="bad", password="bad")
         self._assert_auth("No such local user", username="bad")
 
+    @pytest.mark.confd
+    def test_set_trans_order(self, request):
+        base = '/ietf-interfaces:interfaces/interface[name="if_8"]'
+        path = make_gnmi_path(base + '/enabled')
+        update = gnmi_pb2.Update(path=path,
+                                 val=gnmi_pb2.TypedValue(json_ietf_val=b'false'))
+        self.client.set_request(None, delete=[path], update=[update])
+        datatype = gnmi_pb2.GetRequest.DataType.CONFIG
+        encoding = gnmi_pb2.Encoding.JSON_IETF
+        response = self.client.get(None, [path], datatype, encoding)
+        assert response.notification[0].update[0].val.json_ietf_val == b'false'
+        bad_update = gnmi_pb2.Update(path=make_gnmi_path(base + '/no-such-leaf'),
+                                     val=gnmi_pb2.TypedValue(json_ietf_val=b'42'))
+        with pytest.raises(grpc.RpcError):
+            self.client.set_request(None, delete=[path], update=[bad_update])
+        response = self.client.get(None, [path], datatype, encoding)
+        assert response.notification[0].update[0].val.json_ietf_val == b'false'
+        update = gnmi_pb2.Update(path=path,
+                                 val=gnmi_pb2.TypedValue(json_ietf_val=b'true'))
+        self.client.set_request(None, update=[update])
+
 
 class TestGrpcConfDSet(GrpcBase):
     def set_adapter_type(self):

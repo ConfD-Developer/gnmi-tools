@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import json
 import logging
 import random
@@ -9,7 +10,7 @@ from queue import Queue, Empty
 from random import randint
 
 import gnmi_pb2
-from confd_gnmi_adapter import GnmiServerAdapter
+from confd_gnmi_adapter import GnmiServerAdapter, UpdateTransaction
 from confd_gnmi_common import make_xpath_path, make_gnmi_path, get_timestamp_ns
 
 log = logging.getLogger('confd_gnmi_demo_adapter')
@@ -445,11 +446,20 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
         log.debug("<== notifications=%s", notifications)
         return notifications
 
-    def set_update(self, prefix, path, val):
-        log.info("==> prefix=%s, path=%s, val=%s", prefix, path, val)
-        path_str = make_xpath_path(path, prefix)
+    @contextmanager
+    def update_transaction(self, prefix):
+        yield DemoTransaction(prefix)
+
+
+class DemoTransaction(UpdateTransaction):
+    def __init__(self, prefix):
+        self.prefix = prefix
+
+    def set_update(self, path, val):
+        log.info("==> path=%s, val=%s", path, val)
+        path_str = make_xpath_path(path, self.prefix)
         op = gnmi_pb2.UpdateResult.INVALID
-        if self._nsless_xpath(path_str) in self.demo_db:
+        if GnmiDemoServerAdapter._nsless_xpath(path_str) in GnmiDemoServerAdapter.demo_db:
             if val.string_val:
                 str_val = val.string_val
             elif val.json_ietf_val:
@@ -459,24 +469,24 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
             else:
                 # TODO
                 str_val = "{}".format(val)
-            str_val = str_val.replace(self.NS_IANA, "")
-            with self.db_lock:
-                self.demo_db[path_str] = str_val
+            str_val = str_val.replace(GnmiDemoServerAdapter.NS_IANA, "")
+            with GnmiDemoServerAdapter.db_lock:
+                GnmiDemoServerAdapter.demo_db[path_str] = str_val
             op = gnmi_pb2.UpdateResult.UPDATE
 
         log.info("==> op=%s", op)
         return op
 
-    def set(self, prefix, updates):
-        log.info("==> prefix=%s, updates=%s", prefix, updates)
-        ops = [(up.path, self.set_update(prefix, up.path, up.val))
+    def update(self, updates):
+        log.info("==> updates=%s", updates)
+        ops = [(up.path, self.set_update(up.path, up.val))
                for up in updates]
 
         log.info("==> ops=%s", ops)
         return ops
 
-    def delete(self, prefix, paths):
-        log.info("==> prefix=%s, paths=%s", prefix, paths)
+    def delete(self, paths):
+        log.info("==> paths=%s", paths)
         ops = []
         # TODO
         log.info("==> ops=%s", ops)

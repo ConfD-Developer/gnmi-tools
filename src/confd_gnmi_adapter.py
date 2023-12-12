@@ -5,12 +5,33 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from queue import Queue, Empty
-from typing import List
+from typing import List, ContextManager
 
 import gnmi_pb2
 from confd_gnmi_common import get_timestamp_ns
 
 log = logging.getLogger('confd_gnmi_adapter')
+
+
+class UpdateTransaction(ABC):
+    @abstractmethod
+    def update(self, path, value):
+        """
+        Apply given update.
+        :param path: gNMI path
+        :param value: TypedValue to be applied to the path
+        :return: gNMI UpdateResult operation
+        """
+        pass
+
+    @abstractmethod
+    def delete(self, path):
+        """
+        Delete value(s) for given single path.
+        :param path: gNMI path to delete
+        :return: gNMI UpdateResult operation
+        """
+        pass
 
 
 class GnmiServerAdapter(ABC):
@@ -56,27 +77,13 @@ class GnmiServerAdapter(ABC):
         pass
 
     @abstractmethod
-    def set(self, prefix, updates):
+    def update_transaction(self, prefix) -> ContextManager[UpdateTransaction]:
         """
-        Apply given updates.
-        :param prefix: gNMI path prefix
-        :param updates: gNMI updates (with path and val) to be set
-        :return: gNMI UpdateResult operation
+        A transaction context manager.  Start a transaction and
+        yield a transaction handler to be used for subsequent calls
+        to update methods.
         """
-        pass
-
-    @abstractmethod
-    def delete(self, prefix, paths):
-        """
-        Delete value(s) for given path
-        TODO this is simple version for initial implementation
-        To reflect fully gNMI Set,
-        we should pass all delete, replace and update lists
-        :param prefix: gNMI path prefix
-        :param paths: list of gNMI paths to delete
-        :return: gNMI UpdateResult operation
-        """
-        pass
+        ...
 
     class SubscriptionHandler(ABC):
 
