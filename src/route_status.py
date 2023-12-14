@@ -130,6 +130,7 @@ class RouteProvider:
     @staticmethod
     def init_dp(route_data: RouteData,
                 confd_ip=None,
+                standalone=True,
                 confd_port=_confd.CONFD_PORT,
                 confd_debug_level=_confd.DEBUG):
         log.info("==>")
@@ -147,7 +148,8 @@ class RouteProvider:
                    confd_ip, confd_port)
         dp.connect(RouteProvider.ctx, RouteProvider.wrksock, dp.WORKER_SOCKET,
                    confd_ip, confd_port)
-        maapi.load_schemas(RouteProvider.maapisock)
+        if standalone:
+            maapi.load_schemas(RouteProvider.maapisock)
 
         tcb = TransCbs(RouteProvider.wrksock)
         dp.register_trans_cb(RouteProvider.ctx, tcb)

@@ -181,7 +181,7 @@ class TestGrpcConfD(AdapterTests):
 
         route_data = RouteData(num=10, random=False)
         assert len(route_data.routes)
-        RouteProvider.init_dp(route_data, confd_debug_level=_confd_DEBUG)
+        RouteProvider.init_dp(route_data, confd_debug_level=_confd_DEBUG, standalone=False)
 
         confd_thread = threading.Thread(target=RouteProvider.confd_loop)
         change_thread = threading.Thread(
