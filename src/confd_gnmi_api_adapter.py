@@ -8,7 +8,7 @@ import sys
 import threading
 import json
 from enum import Enum
-from socket import socket
+from socket import create_server, socket
 import gnmi_pb2
 from confd_gnmi_adapter import GnmiServerAdapter
 from confd_gnmi_api_adapter_defaults import ApiAdapterDefaults
@@ -317,10 +317,9 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
             """
             log.debug("==>")
             log.info("Starting external change server!")
-            ext_server_sock = socket()
             # TODO port (host) as const or command line option
-            ext_server_sock.bind(("localhost",
-                                  GnmiConfDApiServerAdapter.external_port))
+            ext_server_sock = create_server(("localhost", GnmiConfDApiServerAdapter.external_port),
+                                            reuse_port=True)
             ext_server_sock.listen(5)
             log.debug("<== ext_server_sock=%s", ext_server_sock)
             return ext_server_sock
