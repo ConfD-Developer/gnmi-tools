@@ -8,7 +8,7 @@ import sys
 import threading
 import json
 from enum import Enum
-from socket import socket
+from socket import create_server, socket
 import gnmi_pb2
 from confd_gnmi_adapter import GnmiServerAdapter
 from confd_gnmi_api_adapter_defaults import ApiAdapterDefaults
@@ -265,6 +265,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                 self._append_changes(EXT_SPOINT, list(self._external_changes(data)))
                 self.put_event(self.SubscriptionEvent.SEND_CHANGES)
                 log.debug("data=%s", data)
+                connection.recv(1)  # make sure the client side closes the socket first
             log.info("<==")
 
         def subscribe_monitored_paths_cdb(self, sub_sock):
@@ -317,10 +318,9 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
             """
             log.debug("==>")
             log.info("Starting external change server!")
-            ext_server_sock = socket()
             # TODO port (host) as const or command line option
-            ext_server_sock.bind(("localhost",
-                                  GnmiConfDApiServerAdapter.external_port))
+            ext_server_sock = create_server(("localhost", GnmiConfDApiServerAdapter.external_port),
+                                            reuse_port=True)
             ext_server_sock.listen(5)
             log.debug("<== ext_server_sock=%s", ext_server_sock)
             return ext_server_sock
