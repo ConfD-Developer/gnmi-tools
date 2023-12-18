@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import logging
 import functools
 import itertools
@@ -6,11 +7,12 @@ import re
 import select
 import sys
 import threading
+import typing as t
 import json
 from enum import Enum
 from socket import create_server, socket
 import gnmi_pb2
-from confd_gnmi_adapter import GnmiServerAdapter
+from confd_gnmi_adapter import GnmiServerAdapter, UpdateTransaction
 from confd_gnmi_api_adapter_defaults import ApiAdapterDefaults
 from confd_gnmi_common import make_xpath_path, make_formatted_path, \
     add_path_prefix, remove_path_prefix, make_gnmi_path, parse_instance_path, \
@@ -691,36 +693,20 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
         log.info("<== notifications=%s", notifications)
         return notifications
 
-    def set(self, prefix, updates):
-        log.info("==> prefix=%s, updates=%s", prefix, updates)
+    @contextmanager
+    def update_transaction(self, prefix) -> t.Iterator["ApiTransaction"]:
+        log.info("==> prefix=%s", prefix)
         context = "netconf"
         groups = [self.username]
         with maapi.single_write_trans(self.username, context, groups,
-                                      ip=self.addr, port=self.port) as t:
-            updater = Updater(self, t, prefix)
-            ops = [(up.path, updater.update(up.path, up.val)) for up in updates]
-            t.apply()
-
-        log.info("==> ops=%s", ops)
-        return ops
-
-    def delete(self, prefix, paths):
-        log.info("==> prefix=%s, paths=%s", prefix, paths)
-        context = "netconf"
-        groups = [self.username]
-        with maapi.single_write_trans(self.username, context, groups, ip=self.addr,
-                                      port=self.port) as t:
-            ops = []
-            for path in paths:
-                t.delete(self.fix_path_prefixes(make_formatted_path(path, prefix)))
-                ops.append((path, gnmi_pb2.UpdateResult.DELETE))
-            t.apply()
-
-        log.info("==> ops=%s", ops)
-        return ops
+                                      ip=self.addr, port=self.port) as trans:
+            at = ApiTransaction(self, trans, prefix)
+            yield at
+            trans.apply()
+        log.info("<==")
 
 
-class Updater:
+class ApiTransaction(UpdateTransaction):
     """Update message handler.  One instance is suppposed to handle
     all Update messages in one SetRequest.
     """
@@ -729,7 +715,7 @@ class Updater:
         self.trans = trans
         self.prefix = prefix
 
-    def update(self, path, value):
+    def apply_update(self, path, value):
         if value.HasField('json_ietf_val'):
             obj = json.loads(value.json_ietf_val)
         elif value.HasField('json_val'):
@@ -753,3 +739,19 @@ class Updater:
             assert isinstance(obj, dict), 'cannot apply keys to a non-container'
             obj.update(elem.key)
         return {elem.name: obj}
+
+    def update(self, updates):
+        log.debug("==> updates=%s", updates)
+        ops = [(up.path, self.apply_update(up.path, up.val)) for up in updates]
+        log.debug("<== ops=%s", ops)
+        return ops
+
+    def delete(self, paths):
+        def do_delete(path):
+            gpath = self.adapter.fix_path_prefixes(make_formatted_path(path, self.prefix))
+            self.trans.delete(gpath)
+            return (path, gnmi_pb2.UpdateResult.DELETE)
+        log.debug("==> paths=%s", paths)
+        ops = [do_delete(path) for path in paths]
+        log.debug("<== ops=%s", ops)
+        return ops

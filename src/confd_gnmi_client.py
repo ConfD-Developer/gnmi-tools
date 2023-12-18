@@ -239,19 +239,20 @@ class ConfDgNMIClient:
         for pv in path_vals:
             up = gnmi_pb2.Update(path=pv[0], val=pv[1])
             update.append(up)
-        request = gnmi_pb2.SetRequest(prefix=prefix, update=update)
-        response = logged_rpc_call("Set", request,
-                                   lambda: self.stub.Set(request, metadata=self.metadata))
+        response = self.set_request(prefix, update=update)
         log.info("<== response=%s", response)
         return response
 
     def delete(self, prefix, paths):
         log.info("==> prefix=%s paths=%s", prefix, paths)
-        request = gnmi_pb2.SetRequest(prefix=prefix, delete=paths)
-        response = logged_rpc_call("(delete) Set", request,
-                                   lambda: self.stub.Set(request, metadata=self.metadata))
+        response = self.set_request(prefix, delete=paths)
         log.info("<== response=%s", response)
         return response
+
+    def set_request(self, prefix, delete=[], update=[]):
+        request = gnmi_pb2.SetRequest(prefix=prefix, delete=delete, update=update)
+        return logged_rpc_call("Set", request,
+                               lambda: self.stub.Set(request, metadata=self.metadata))
 
 
 def parse_args(args):

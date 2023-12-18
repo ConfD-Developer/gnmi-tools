@@ -166,9 +166,8 @@ class ConfDgNMIServicer(gNMIServicer):
         adapter = self.get_connected_adapter(context)
         self.verify_updates_encoding_supported(request.update, adapter, context)
         # TODO for now we do not process replace list
-        # TODO: changes should be part of one transaction (gNMI spec. 3.4.3)
-        ops = adapter.set(request.prefix, request.update)
-        ops += adapter.delete(request.prefix, request.delete)
+        with adapter.update_transaction(request.prefix) as trans:
+            ops = trans.delete(request.delete) + trans.update(request.update)
 
         # Note: UpdateResult timestamp is deprecated, setting to -1
         results = [gnmi_pb2.UpdateResult(timestamp=-1, path=path, op=op)
