@@ -265,7 +265,6 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                 self._append_changes(EXT_SPOINT, list(self._external_changes(data)))
                 self.put_event(self.SubscriptionEvent.SEND_CHANGES)
                 log.debug("data=%s", data)
-                connection.recv(1)  # make sure the client side closes the socket first
             log.info("<==")
 
         def subscribe_monitored_paths_cdb(self, sub_sock):
