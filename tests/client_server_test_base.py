@@ -73,6 +73,13 @@ class GrpcBase:
             path_str = path_str.format(if_state_str, if_id)
         return make_gnmi_path(path_str)
 
+    def _do_reset_cfg(self):
+        raise NotImplementedError
+
+    @pytest.fixture
+    def reset_cfg(self):
+        self._do_reset_cfg()
+
 
 class AdapterTests(GrpcBase):
     def test_capabilities(self, request):
@@ -561,6 +568,7 @@ class AdapterTests(GrpcBase):
                     datatype=datatype_str_to_int(data_type),
                                  sample_interval=1000, read_count=2)
 
+    @pytest.mark.usefixtures("reset_cfg")
     def test_set(self, request):
         log.info("testing set")
         if_id = 8
@@ -590,6 +598,7 @@ class AdapterTests(GrpcBase):
         AdapterTests.assert_set_response(response.response[0],
                                          (paths[0], gnmi_pb2.UpdateResult.UPDATE))
 
+    @pytest.mark.usefixtures("reset_cfg")
     def test_set_encoding(self, request):
         log.info("testing set_encoding")
         if_id = 8

@@ -23,6 +23,23 @@ import _confd
 
 _confd_DEBUG = 1
 
+
+def reset_confd_config():
+    with maapi.single_read_trans('admin', 'system') as trans:
+        with socket.socket() as sock:
+            sid = trans.save_config(_confd.maapi.CONFIG_J, '')
+            _confd.stream_connect(sock, sid, 0, '127.0.0.1', _confd.PORT)
+            data = b''.join(iter(lambda: sock.recv(1024), b''))
+    yield
+    with maapi.single_write_trans('admin', 'system') as trans:
+        with socket.socket() as sock:
+            sid = trans.load_config_stream(_confd.maapi.CONFIG_J)
+            _confd.stream_connect(sock, sid, 0, '127.0.0.1', _confd.PORT)
+            sock.send(data)
+        assert trans.maapi.load_config_stream_result(sid) == _confd.OK
+        trans.apply()
+
+
 @pytest.mark.grpc
 @pytest.mark.confd
 @pytest.mark.usefixtures("fix_method")
@@ -235,21 +252,13 @@ class TestGrpcConfD(AdapterTests):
                                  val=gnmi_pb2.TypedValue(json_ietf_val=b'true'))
         self.client.set_request(None, update=[update])
 
+    def _do_reset_cfg(self):
+        reset_confd_config()
+
 
 class TestGrpcConfDSet(GrpcBase):
     def set_adapter_type(self):
         self.adapter_type = AdapterType.API
-
-    @pytest.fixture
-    def reset_cfg(self, request):
-        yield
-        with maapi.single_write_trans('admin', 'system') as trans:
-            gt = maagic.get_node(trans, '/gnmi-tools')
-            for lst in (gt.top_list, gt.double_key_list):
-                for inst in lst:
-                    if inst.name.startswith('test-'):
-                        trans.delete(inst._path)
-            trans.apply()
 
     def assert_instance(self, lst='top-list', list_ix=1, leaf='down/str-leaf', value='abcd'):
         key = f'{{test-{list_ix} test}}' if lst == 'double-key-list' \
@@ -310,3 +319,6 @@ class TestGrpcConfDSet(GrpcBase):
         self.client_set('/gnmi-tools:gnmi-tools', obj)
         self.assert_instance(value='efgh')
         self.assert_instance(list_ix=2, value='efgh')
+
+    def _do_reset_cfg(self):
+        reset_confd_config()

@@ -13,3 +13,6 @@ class TestGrpcDemo(AdapterTests):
 
     def set_adapter_type(self):
         self.adapter_type = AdapterType.DEMO
+
+    def _do_reset_cfg(self):
+        pass
