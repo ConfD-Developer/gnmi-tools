@@ -78,7 +78,7 @@ class GrpcBase:
 
     @pytest.fixture
     def reset_cfg(self):
-        self._do_reset_cfg()
+        yield from self._do_reset_cfg()
 
 
 class AdapterTests(GrpcBase):

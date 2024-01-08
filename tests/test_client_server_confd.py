@@ -253,7 +253,7 @@ class TestGrpcConfD(AdapterTests):
         self.client.set_request(None, update=[update])
 
     def _do_reset_cfg(self):
-        reset_confd_config()
+        return reset_confd_config()
 
 
 class TestGrpcConfDSet(GrpcBase):
@@ -321,4 +321,4 @@ class TestGrpcConfDSet(GrpcBase):
         self.assert_instance(list_ix=2, value='efgh')
 
     def _do_reset_cfg(self):
-        reset_confd_config()
+        return reset_confd_config()

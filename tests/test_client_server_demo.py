@@ -15,4 +15,4 @@ class TestGrpcDemo(AdapterTests):
         self.adapter_type = AdapterType.DEMO
 
     def _do_reset_cfg(self):
-        pass
+        yield
