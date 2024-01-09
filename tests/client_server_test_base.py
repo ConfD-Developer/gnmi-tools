@@ -34,7 +34,7 @@ class GrpcBase:
 
     @abstractmethod
     def set_adapter_type(self):
-        raise NotImplementedError
+        pass
 
     @pytest.fixture
     def fix_method(self, request):
@@ -646,10 +646,7 @@ class AdapterTests(GrpcBase):
             GnmiDemoServerAdapter.load_config_string(
                 self._changes_list_to_xml(changes_list, prefix_pfx))
         if self.adapter_type == AdapterType.API:
-            if ns_prefix in self.PREFIX_MAP:
-                prefix_pfx = prefix_str.format(prefix=self.PREFIX_MAP[ns_prefix])
-            else:
-                prefix_pfx = prefix_str.format(prefix='')
+            prefix_pfx = prefix_str.format(prefix=self.PREFIX_MAP.get(ns_prefix, ''))
             thr = threading.Thread(
                 target=self._send_change_list_to_confd_thread,
                 args=(prefix_pfx, changes_list,))

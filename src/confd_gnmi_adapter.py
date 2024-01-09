@@ -125,7 +125,7 @@ class GnmiServerAdapter(ABC):
             pass
 
         @abstractmethod
-        def get_subscription_notifications(self):
+        def get_subscription_notifications(self) -> list[gnmi_pb2.Notification]:
             """
             Get gNMI subscription updates for changed values
             :return: gNMI Notification array

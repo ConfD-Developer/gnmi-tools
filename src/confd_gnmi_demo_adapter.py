@@ -228,7 +228,7 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
             log.debug("<== updates=%s", updates)
             return updates
 
-        def get_subscription_notifications(self) -> []:
+        def get_subscription_notifications(self) -> list[gnmi_pb2.Notification]:
             log.debug("==> self.change_db=%s", self.change_db)
             assert len(self.change_db) > 0
             update = []
@@ -341,7 +341,8 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
                     if add_count == 0:
                         add_count += 1
                         # sometimes skip add if is first from previous
-                        if randint(0, 1) == 0: continue
+                        if randint(0, 1) == 0:
+                            continue
                     add_count = 0  # reset add count
                     self.change_event_queue.put(self.ChangeEvent.ADD)
             log.debug("<==")
