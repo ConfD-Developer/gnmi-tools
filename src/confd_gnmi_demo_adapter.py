@@ -16,6 +16,7 @@ from confd_gnmi_common import make_xpath_path, make_gnmi_path, get_timestamp_ns
 
 log = logging.getLogger('confd_gnmi_demo_adapter')
 
+
 # Types for streaming telemetry operations
 class ChangeOp:
     @abstractmethod
@@ -45,10 +46,10 @@ class ChangeDel(ChangeOp):
     def __init__(self, deleted_paths=[]):
         self.deleted_paths = deleted_paths
     def __repr__(self):
-        return f'ChangeDel()'
+        return 'ChangeDel'
 
     def __str__(self):
-        return f'ChangeDel'
+        return 'ChangeDel'
 
 class GnmiDemoServerAdapter(GnmiServerAdapter):
     NS_INTERFACES = "ietf-interfaces:"
@@ -395,7 +396,7 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
                             del db[db_path]
                             if "gnmi-tools/top-d" in db_path:
                                 a_path = db_path.split(']')[0]
-                            ch_op.deleted_paths.append(a_path + ']')
+                                ch_op.deleted_paths.append(a_path + ']')
             log.debug("<== ret=%s", ret)
             return ret
 
