@@ -145,16 +145,13 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
                 cls.demo_state_db[f"{state_path}/type"] = "gigabitEthernet"
                 cls.demo_db[f"{path}/enabled"] = True
 
+            path_str = "/gnmi-tools/top-d/top-d-list[name=n{index}]"
             for i in range(1, 5):
-                path = f"/gnmi-tools/top-d/top-d-list[name=n{i}]"
-                cls.demo_db[f"{path}/name"] = f"n{i}"
-                if i == 2:
-                    cls.demo_db[f"{path}/empty-leaf"] = [None]
-                if i == 3:
-                    cls.demo_db[f"{path}/pres"] = {}
-                if i == 4:
-                    cls.demo_db[f"{path}/down/str-leaf"] = "test"
-                    cls.demo_db[f"{path}/down/int-leaf"] = "23"
+                cls.demo_db[f"{path_str.format(index=i)}/name"] = f"n{i}"
+            cls.demo_db[f"{path_str.format(index=2)}/empty-leaf"] = [None]
+            cls.demo_db[f"{path_str.format(index=3)}/pres"] = {}
+            cls.demo_db[f"{path_str.format(index=4)}/down/str-leaf"] = "test"
+            cls.demo_db[f"{path_str.format(index=4)}/down/int-leaf"] = "23"
 
         log.debug("<== self.demo_db=%s self.demo_state_db=%s", cls.demo_db,
                   cls.demo_state_db)
