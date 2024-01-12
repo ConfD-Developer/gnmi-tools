@@ -4,6 +4,10 @@
     <STREAM>
       <changes>
         <element>
+          <path>/gnmi-tools/top-for-delete</path>
+          <del/>
+        </element>
+        <element>
           <path>/interfaces/interface[name=if_5]/type</path>
           <val>fastEther</val>
         </element>
@@ -36,6 +40,10 @@
         <element>
           <path>/interfaces-state/interface[name=state_if_6]/type</path>
           <val>gigabitEthernet</val>
+        </element>
+        <element>
+          <path>/interfaces/interface[name=if_6]/type</path>
+          <del/>
         </element>
         <element>send</element>
       </changes>

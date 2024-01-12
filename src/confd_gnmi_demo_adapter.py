@@ -5,6 +5,7 @@ import random
 import re
 import threading
 import xml.etree.ElementTree as ET
+from abc import abstractmethod
 from enum import Enum
 from queue import Queue, Empty
 from random import randint
@@ -16,8 +17,43 @@ from confd_gnmi_common import make_xpath_path, make_gnmi_path, get_timestamp_ns
 log = logging.getLogger('confd_gnmi_demo_adapter')
 
 
+# Types for streaming telemetry operations
+class ChangeOp:
+    @abstractmethod
+    def __repr__(self):
+        return f'{self.__class__.__name__}()'
+
+    @abstractmethod
+    def __str__(self):
+        return f'{self.__class__.__name__}()'
+
+
+class ChangeVal(ChangeOp):
+    def __init__(self, value):
+        if not isinstance(value, str):
+            raise ValueError("Invalid value type")
+        self.value = value
+
+    def __repr__(self):
+        return f'ChangeVal({self.value})'
+
+    def __str__(self):
+        return str(self.value)
+
+
+class ChangeDel(ChangeOp):
+
+    def __init__(self, deleted_paths=[]):
+        self.deleted_paths = deleted_paths
+    def __repr__(self):
+        return 'ChangeDel'
+
+    def __str__(self):
+        return 'ChangeDel'
+
 class GnmiDemoServerAdapter(GnmiServerAdapter):
     NS_INTERFACES = "ietf-interfaces:"
+    NS_GNMI_TOOLS = "gnmi-tools:"
     NS_IANA = "iana-if-type:"
 
     # simple demo database
@@ -47,7 +83,7 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
     ]
 
     def __init__(self):
-        self._fill_demo_db()
+        GnmiDemoServerAdapter.fill_demo_db()
 
     @staticmethod
     def load_config_string(xml_cfg):
@@ -60,7 +96,7 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
         assert root.tag == "demo"
         changes = root.findall("./subscription/STREAM/changes/element")
         log.debug("changes=%s", changes)
-        if len(changes):
+        if changes:
             if "changes" not in GnmiDemoServerAdapter.config:
                 GnmiDemoServerAdapter.config["changes"] = []
                 GnmiDemoServerAdapter.config["changes_idx"] = 0
@@ -68,12 +104,15 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
                 log.debug("len(el)=%s", len(el))
                 if len(el):
                     if len(el) == 2:
-                        (path, val) = (el[0], el[1])
-                        log.debug("path.text=%s val.text=%s", path.text,
-                                  val.text)
-                        GnmiDemoServerAdapter.config["changes"].append(
-                            (GnmiDemoServerAdapter._nsless_xpath(path.text),
-                             val.text.replace(GnmiDemoServerAdapter.NS_IANA, "")))
+                        path = GnmiDemoServerAdapter._nsless_xpath(el[0].text)
+                        if (el[1].tag == "val"):
+                            val = ChangeVal(el[1].text.replace(GnmiDemoServerAdapter.NS_IANA, ""))
+                        elif (el[1].tag == "del"):
+                            val=ChangeDel()
+                        else:
+                            assert False
+                        log.debug("path=%s val=%s", path, val)
+                        GnmiDemoServerAdapter.config["changes"].append((path, val))
                 elif len(el) == 0:
                     log.debug("el.tag=%s", el.text)
                     GnmiDemoServerAdapter.config["changes"].append(el.text)
@@ -86,29 +125,46 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
             cls._instance = GnmiDemoServerAdapter()
         return cls._instance
 
-    def _fill_demo_db(self):
+    @classmethod
+    def fill_demo_db(cls, reset = False):
         log.debug("==>")
-        with self.db_lock:
+
+        with cls.db_lock:
+            if reset:
+                cls.demo_db, cls.demo_state_db = {}, {}
             # make interfaces alphabetically sorted
-            ifs = sorted(str(i+1) for i in range(GnmiDemoServerAdapter.num_of_ifs))
+            ifs = sorted(
+                str(i + 1) for i in range(cls.num_of_ifs))
             for if_id in ifs:
                 if_name = f"if_{if_id}"
-                state_if_name = "state_if_{}".format(if_id)
-                path = "/interfaces/interface[name={}]".format(if_name)
-                state_path = "/interfaces-state/interface[name={}]".format(
-                    state_if_name)
-                self.demo_db["{}/name".format(path)] = if_name
-                self.demo_state_db["{}/name".format(state_path)] = state_if_name
-                self.demo_db["{}/type".format(path)] = "gigabitEthernet"
-                self.demo_state_db[
-                    "{}/type".format(state_path)] = "gigabitEthernet"
-                self.demo_db["{}/enabled".format(path)] = True
-        log.debug("<== self.demo_db=%s self.demo_state_db=%s", self.demo_db,
-                  self.demo_state_db)
+                state_if_name = f"state_if_{if_id}"
+                path = f"/interfaces/interface[name={if_name}]"
+                state_path = f"/interfaces-state/interface[name={state_if_name}]"
+                cls.demo_db[f"{path}/name"] = if_name
+                cls.demo_state_db[f"{state_path}/name"] = state_if_name
+                cls.demo_db[f"{path}/type"] = "gigabitEthernet"
+                cls.demo_state_db[f"{state_path}/type"] = "gigabitEthernet"
+                cls.demo_db[f"{path}/enabled"] = True
+
+            path_str = "/gnmi-tools/top-for-delete/top-list[name=n{index}]"
+            for i in range(1, 5):
+                cls.demo_db[f"{path_str.format(index=i)}/name"] = f"n{i}"
+            cls.demo_db[f"{path_str.format(index=2)}/empty-leaf"] = [None]
+            cls.demo_db[f"{path_str.format(index=3)}/pres"] = {}
+            cls.demo_db[f"{path_str.format(index=4)}/down/str-leaf"] = "test"
+            cls.demo_db[f"{path_str.format(index=4)}/down/int-leaf"] = "23"
+
+        log.debug("<== self.demo_db=%s self.demo_state_db=%s", cls.demo_db,
+                  cls.demo_state_db)
+
+    @classmethod
+    def reset(cls):
+        cls.fill_demo_db(reset = True)
 
     @staticmethod
     def _nsless_xpath(xpath: str):
-        return xpath.replace(GnmiDemoServerAdapter.NS_INTERFACES, "")
+        return (xpath.replace(GnmiDemoServerAdapter.NS_INTERFACES, "")
+                .replace(GnmiDemoServerAdapter.NS_GNMI_TOOLS, ""))
 
     @staticmethod
     def _get_key_from_xpath(xpath):
@@ -131,11 +187,9 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
         for p, v in db.items():
             key = GnmiDemoServerAdapter._get_key_from_xpath(p)
             elem = GnmiDemoServerAdapter._get_elem_from_xpath(p)
-            elem_map = {}
-            if key in map_db:
-                elem_map = map_db[key]
+            elem_map = map_db.get(key, {})
             if elem == "type":
-                v = "{}{}".format(GnmiDemoServerAdapter.NS_IANA, v)
+                v = f'{GnmiDemoServerAdapter.NS_IANA}{v}'
             elem_map[elem] = v
             map_db[key] = elem_map
         log.debug("<== map_db={}".format(map_db))
@@ -161,36 +215,59 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
             adapter: GnmiDemoServerAdapter = self.adapter
             with adapter.db_lock:
                 updates = adapter.get_db_updates_for_path(path, prefix,
-                                                          adapter.demo_db,
+                                                          GnmiDemoServerAdapter.demo_db,
                                                           allow_aggregation)
                 # 'if' below is optimization
                 if len(updates) == 0:
                     updates = adapter.get_db_updates_for_path(path, prefix,
-                                                              adapter.demo_state_db,
+                                                              GnmiDemoServerAdapter.demo_state_db,
                                                               allow_aggregation)
 
             log.debug("<== updates=%s", updates)
             return updates
 
-        def get_monitored_changes(self) -> []:
+        def get_subscription_notifications(self) -> list[gnmi_pb2.Notification]:
+            log.debug("==> self.change_db=%s", self.change_db)
+            assert len(self.change_db) > 0
+            update = []
+            delete = []
+
+            def remove_prefix(path, prefix):
+                if path.startswith(prefix):
+                    return path[len(prefix):]
+                return path
+
             with self.change_db_lock:
-                log.debug("==> self.change_db=%s", self.change_db)
-                assert len(self.change_db) > 0
-                update = []
                 for c in self.change_db:
                     prefix_str = self.adapter._nsless_xpath(make_xpath_path(
                         gnmi_prefix=self.subscription_list.prefix))
-                    p = self.adapter._nsless_xpath(c[0])
-                    if p.startswith(prefix_str):
-                        p = p[len(prefix_str):]
-                    v = "{}{}".format(GnmiDemoServerAdapter.NS_IANA, c[1])
-                    json_val = gnmi_pb2.TypedValue(
-                        json_ietf_val=json.dumps(v).encode())
-                    update.append(gnmi_pb2.Update(path=make_gnmi_path(p),
-                                                  val=json_val))
+                    p = remove_prefix(self.adapter._nsless_xpath(c[0]),
+                                      prefix_str)
+                    if isinstance(c[1], ChangeVal):
+                        v = "{}{}".format(GnmiDemoServerAdapter.NS_IANA, c[1])
+                        json_val = gnmi_pb2.TypedValue(
+                            json_ietf_val=json.dumps(v).encode())
+                        update.append(gnmi_pb2.Update(path=make_gnmi_path(p),
+                                                      val=json_val))
+                    elif isinstance(c[1], ChangeDel):
+                        delete.extend(
+                            [make_gnmi_path(remove_prefix(p, prefix_str)) for p
+                             in
+                             [path for i, path in enumerate(c[1].deleted_paths)
+                              if path not in c[1].deleted_paths[:i]]])
+                    else:
+                        assert False
                 self.change_db = []
-            log.debug("<== update=%s", update)
-            return update
+                log.debug("<== update=%s delete=%s", update, delete)
+
+            notif = gnmi_pb2.Notification(timestamp=get_timestamp_ns(),
+                                          prefix=self.subscription_list.prefix,
+                                          update=update,
+                                          delete=delete,
+                                          atomic=False)
+
+            log.debug("<== notif=%s", notif)
+            return [notif]
 
         def _get_random_changes(self):
             log.debug("==>")
@@ -210,7 +287,7 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
                     new_val = "fastEther"
                 log.debug("adding change path=%s, new_val=%s", path,
                           new_val)
-                changes.append((path, new_val))
+                changes.append((path, ChangeVal(new_val)))
             if randint(0, 9) < 8:
                 changes.append("send")
             else:
@@ -240,7 +317,7 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
         def process_changes(self):
             log.debug("==>")
             add_count = 0
-            # there may be more changes to same path, we cannot use map
+            # there may be more changes to the same path, we cannot use map
             assert self.change_event_queue is not None
             assert len(self.change_db) == 0
             while True:
@@ -249,43 +326,8 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
                     event = self.change_event_queue.get(timeout=1)
                     log.debug("event=%s", event)
                     if event == self.ChangeEvent.ADD:
-                        # generate modifications and add them
-                        with self.change_db_lock, self.adapter.db_lock:
-                            if "changes" in GnmiDemoServerAdapter.config:
-                                changes = self._get_config_changes()
-                            else:
-                                changes = self._get_random_changes()
-                            send = False
-                            for c in changes:
-                                log.debug("processing change c=%s", c)
-                                if isinstance(c, str):
-                                    assert c == "send" or c == "break"
-                                    if c == "send":
-                                        send = True
-                                    break
-                                else:
-                                    log.info("c=%s self.monitored_paths=%s",
-                                             c, self.monitored_paths)
-                                    (path, val) = c
-                                    if path[0] != '/':
-                                        path = '/' + path
-                                    if any(path.startswith(elem) for elem in
-                                           self.monitored_paths):
-                                        log.info("appending (path, val)=%s", (path, val))
-                                        self.change_db.append((path, val))
-                                        if path in self.adapter.demo_db:
-                                            self.adapter.demo_db[path] = val
-                                        elif path in self.adapter.demo_state_db:
-                                            self.adapter.demo_state_db[
-                                                path] = val
-                                        else:
-                                            assert False
-                        if send:
-                            if len(self.change_db):
-                                self.change_event_queue.put(
-                                    self.ChangeEvent.SEND)
+                        self._process_add_event()
                     elif event == self.ChangeEvent.SEND:
-                        # send all modified paths
                         self.put_event(self.SubscriptionEvent.SEND_CHANGES)
                     elif event == self.ChangeEvent.FINISH:
                         break
@@ -302,6 +344,61 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
                     add_count = 0  # reset add count
                     self.change_event_queue.put(self.ChangeEvent.ADD)
             log.debug("<==")
+
+        def _process_add_event(self):
+            log.debug("==>")
+            with self.change_db_lock, self.adapter.db_lock:
+                if "changes" in GnmiDemoServerAdapter.config:
+                    changes = self._get_config_changes()
+                else:
+                    changes = self._get_random_changes()
+                send = False
+                for c in changes:
+                    log.debug("processing change c=%s", c)
+                    if isinstance(c, str):
+                        assert c == "send" or c == "break"
+                        if c == "send":
+                            send = True
+                        break
+                    else:
+                        log.info("c=%s self.monitored_paths=%s",
+                                 c, self.monitored_paths)
+                        (path, ch_op) = c
+                        if path[0] != '/':
+                            path = '/' + path
+                        if any(path.startswith(elem) for elem in
+                               self.monitored_paths):
+                            log.info("appending (path, val)=%s", (path, ch_op))
+                            self.change_db.append(
+                                self.update_demo_db(path, ch_op))
+            if send:
+                if len(self.change_db):
+                    self.change_event_queue.put(
+                        self.ChangeEvent.SEND)
+            log.debug("<==")
+
+        def update_demo_db(self, path, ch_op):
+            log.debug("==>")
+            ret = (path, ch_op)
+            if isinstance(ch_op, ChangeVal):
+                if path in self.adapter.demo_db:
+                    self.adapter.demo_db[path] = ch_op
+                elif path in self.adapter.demo_state_db:
+                    self.adapter.demo_state_db[
+                        path] = ch_op
+                else:
+                    log.warning("path=%s not found, skipping update (val=%s)", path, ch_op)
+            elif isinstance(ch_op, ChangeDel):
+                for db in [self.adapter.demo_db,
+                           self.adapter.demo_state_db]:
+                    for db_path in list(db.keys()):
+                        if db_path.startswith(path):
+                            del db[db_path]
+                            if "gnmi-tools/top-for-delete" in db_path:
+                                a_path = db_path.split(']')[0]
+                                ch_op.deleted_paths.append(a_path + ']')
+            log.debug("<== ret=%s", ret)
+            return ret
 
         def add_path_for_monitoring(self, path, prefix):
             log.debug("==>")
@@ -373,7 +470,9 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
         path_val_list = []
         map_db = self._demo_db_to_key_elem_map(db)
         ifaces = self._nsless_xpath(path_with_prefix)
-        if allow_aggregation and ifaces == "/interfaces" or ifaces == "/interfaces-state":
+        if allow_aggregation and (ifaces == "/interfaces" or ifaces == "/interfaces-state"):
+            # for now, only interface elements supported for aggregation
+            map_db = {key: value for key, value in map_db.items() if "if_" in key}
             if list(db.keys())[0].startswith(ifaces):
                 path_val_list = [
                     (path_with_prefix, {"interface": list(map_db.values())})]
@@ -421,11 +520,12 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
         with self.db_lock:
             if data_type == gnmi_pb2.GetRequest.DataType.CONFIG or \
                     data_type == gnmi_pb2.GetRequest.DataType.ALL:
-                updates = self.get_db_updates_for_path(path, prefix, self.demo_db,
+                updates = self.get_db_updates_for_path(path, prefix,
+                                                       GnmiDemoServerAdapter.demo_db,
                                                        allow_aggregation=True)
             if data_type != gnmi_pb2.GetRequest.DataType.CONFIG:
                 updates = self.get_db_updates_for_path(path, prefix,
-                                                       self.demo_state_db,
+                                                       GnmiDemoServerAdapter.demo_state_db,
                                                        allow_aggregation=True)
 
         log.debug("<== updates=%s", updates)
@@ -448,18 +548,19 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
 
     @contextmanager
     def update_transaction(self, prefix):
-        yield DemoTransaction(prefix)
+        yield DemoTransaction(prefix, GnmiDemoServerAdapter.demo_db)
 
 
 class DemoTransaction(UpdateTransaction):
-    def __init__(self, prefix):
+    def __init__(self, prefix, demo_db):
         self.prefix = prefix
+        self.demo_db = demo_db
 
     def set_update(self, path, val):
         log.info("==> path=%s, val=%s", path, val)
         path_str = make_xpath_path(path, self.prefix)
         op = gnmi_pb2.UpdateResult.INVALID
-        if GnmiDemoServerAdapter._nsless_xpath(path_str) in GnmiDemoServerAdapter.demo_db:
+        if GnmiDemoServerAdapter._nsless_xpath(path_str) in self.demo_db:
             if val.string_val:
                 str_val = val.string_val
             elif val.json_ietf_val:
@@ -471,7 +572,7 @@ class DemoTransaction(UpdateTransaction):
                 str_val = "{}".format(val)
             str_val = str_val.replace(GnmiDemoServerAdapter.NS_IANA, "")
             with GnmiDemoServerAdapter.db_lock:
-                GnmiDemoServerAdapter.demo_db[path_str] = str_val
+                self.demo_db[path_str] = str_val
             op = gnmi_pb2.UpdateResult.UPDATE
 
         log.info("==> op=%s", op)

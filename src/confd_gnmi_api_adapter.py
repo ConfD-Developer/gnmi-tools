@@ -114,7 +114,7 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
             self.stop_pipe = None
             self.subpoint_paths = {}
 
-        def get_subscription_notifications(self):
+        def get_subscription_notifications(self) -> list[gnmi_pb2.Notification]:
             return [gnmi_pb2.Notification(timestamp=get_timestamp_ns(),
                                           prefix=prefix,
                                           update=updates,
@@ -145,9 +145,6 @@ class GnmiConfDApiServerAdapter(GnmiServerAdapter):
                         log.debug("update=%s deletes=%s", updates, deletes)
                         yield prefix, updates, deletes
                 self.change_db = []
-
-        def get_monitored_changes(self):
-            raise NotImplementedError
 
         def get_sample(self, path, prefix, allow_aggregation=False,
                        start_change_processing=False):

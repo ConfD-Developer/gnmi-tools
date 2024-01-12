@@ -125,11 +125,10 @@ class GnmiServerAdapter(ABC):
             pass
 
         @abstractmethod
-        def get_monitored_changes(self) -> List:
+        def get_subscription_notifications(self) -> list[gnmi_pb2.Notification]:
             """
             Get gNMI subscription updates for changed values
-            :return: gNMI update array
-            #TODO should we also return delete array
+            :return: gNMI Notification array
             """
             pass
 
@@ -260,15 +259,6 @@ class GnmiServerAdapter(ABC):
                          for notif in notifications]
             log.debug("<== responses=%s", responses)
             return responses
-
-        def get_subscription_notifications(self):
-            update = self.get_monitored_changes()
-            notif = gnmi_pb2.Notification(timestamp=get_timestamp_ns(),
-                                          prefix=self.subscription_list.prefix,
-                                          update=update,
-                                          delete=[],
-                                          atomic=False)
-            return [notif]
 
         def _get_next_sample_interval_and_subscriptions(self,
                                                         first_sample_time: int):

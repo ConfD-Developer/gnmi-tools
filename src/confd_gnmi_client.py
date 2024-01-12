@@ -18,7 +18,7 @@ import gnmi_pb2
 from confd_gnmi_common import HOST, PORT, make_xpath_path, VERSION, \
     common_optparse_options, common_optparse_process, make_gnmi_path, \
     datatype_str_to_int, subscription_mode_str_to_int, \
-    encoding_int_to_str, encoding_str_to_int, get_time_string
+    encoding_int_to_str, encoding_str_to_int, get_time_string, get_timestamp_ns
 
 from gnmi_pb2_grpc import gNMIStub
 
@@ -147,18 +147,21 @@ class ConfDgNMIClient:
         pfx_str = make_xpath_path(gnmi_prefix=n.prefix)
         print("timestamp {} prefix {} atomic {}".format(
             get_time_string(n.timestamp), pfx_str, n.atomic))
-        print("Updates:")
-        for u in n.update:
-            if u.val.json_val:
-                value = json.loads(u.val.json_val)
-            elif u.val.json_ietf_val:
-                value = json.loads(u.val.json_ietf_val)
-            else:
-                value = str(u.val)
-            print("path: {} value {}".format(pfx_str + make_xpath_path(u.path),
-                                             value))
-        for dpath in n.delete:
-            print("path deleted: {}".format(pfx_str + make_xpath_path(dpath)))
+        if n.update:
+            print("Updates:")
+            for u in n.update:
+                if u.val.json_val:
+                    value = json.loads(u.val.json_val)
+                elif u.val.json_ietf_val:
+                    value = json.loads(u.val.json_ietf_val)
+                else:
+                    value = str(u.val)
+                print("path: {} value {}".format(pfx_str + make_xpath_path(u.path),
+                                                 value))
+        if n.delete:
+            print("Deletes:")
+            for dpath in n.delete:
+                print("path deleted: {}".format(pfx_str + make_xpath_path(dpath)))
 
     @staticmethod
     def read_subscribe_responses(responses, read_count=-1):
@@ -169,7 +172,10 @@ class ConfDgNMIClient:
                 log.info("******* Subscription received response=%s read_count=%i",
                          response, read_count)
                 print("subscribe - response read_count={}".format(read_count))
-                ConfDgNMIClient.print_notification(response.update)
+                if response.sync_response:
+                    print(f"timestamp {get_time_string(get_timestamp_ns())} Sync_response")
+                else:
+                    ConfDgNMIClient.print_notification(response.update)
                 num_read += 1
                 if read_count > 0:
                     read_count -= 1
