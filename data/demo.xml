@@ -4,7 +4,7 @@
     <STREAM>
       <changes>
         <element>
-          <path>/gnmi-tools/top-d</path>
+          <path>/gnmi-tools/top-for-delete</path>
           <del/>
         </element>
         <element>

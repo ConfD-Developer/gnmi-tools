@@ -1,4 +1,5 @@
 module gnmi-tools {
+
   namespace "http://cisco.com/ns/yang/gnmi-tools";
   prefix gnmi-tools;
 
@@ -17,6 +18,14 @@ module gnmi-tools {
     }
   }
 
+  grouping top-list {
+    list top-list {
+      key name;
+      leaf name {type string;}
+      uses combo;
+    }
+  }
+
   container gnmi-tools {
     container top {
       uses combo;
@@ -27,11 +36,7 @@ module gnmi-tools {
       uses combo;
     }
 
-    list top-list {
-      key name;
-      leaf name {type string;}
-      uses combo;
-    }
+    uses top-list;
 
     list double-key-list {
         key "name type";
@@ -40,12 +45,8 @@ module gnmi-tools {
         leaf admin-state {type string;}
     }
 
-    container top-d {
-      list top-d-list {
-        key name;
-        leaf name {type string;}
-        uses combo;
-      }
+    container top-for-delete {
+      uses top-list;
     }
   }
 

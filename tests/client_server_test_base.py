@@ -633,18 +633,18 @@ class AdapterTests(GrpcBase):
         log.info("testing subscribe_stream_delete")
 
         changes_list = [
-            ("top-d", ChangeDel(deleted_paths=[
-               "/top-d/top-d-list[name=n1]",
-               "/top-d/top-d-list[name=n2]",
-               "/top-d/top-d-list[name=n3]",
-               "/top-d/top-d-list[name=n4]",
+            ("top-for-delete", ChangeDel(deleted_paths=[
+               "/top-for-delete/top-list[name=n1]",
+               "/top-for-delete/top-list[name=n2]",
+               "/top-for-delete/top-list[name=n3]",
+               "/top-for-delete/top-list[name=n4]",
             ])),
             "send",
         ]
         log.info("change_list=%s", changes_list)
 
         prefix_str = "{prefix}gnmi-tools"
-        paths = [make_gnmi_path("top-d")]
+        paths = [make_gnmi_path("top-for-delete")]
         self._test_subscribe(prefix_str, "gnmi-tools:",
                              paths, changes_list)
 

@@ -146,7 +146,7 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
                 cls.demo_state_db[f"{state_path}/type"] = "gigabitEthernet"
                 cls.demo_db[f"{path}/enabled"] = True
 
-            path_str = "/gnmi-tools/top-d/top-d-list[name=n{index}]"
+            path_str = "/gnmi-tools/top-for-delete/top-list[name=n{index}]"
             for i in range(1, 5):
                 cls.demo_db[f"{path_str.format(index=i)}/name"] = f"n{i}"
             cls.demo_db[f"{path_str.format(index=2)}/empty-leaf"] = [None]
@@ -394,7 +394,7 @@ class GnmiDemoServerAdapter(GnmiServerAdapter):
                     for db_path in list(db.keys()):
                         if db_path.startswith(path):
                             del db[db_path]
-                            if "gnmi-tools/top-d" in db_path:
+                            if "gnmi-tools/top-for-delete" in db_path:
                                 a_path = db_path.split(']')[0]
                                 ch_op.deleted_paths.append(a_path + ']')
             log.debug("<== ret=%s", ret)
